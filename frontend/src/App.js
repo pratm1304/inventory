@@ -16,7 +16,7 @@ function App() {
   }, []);
 
   const loadProducts = async () => {
-    const res = await axios.get("http://localhost:5000/api/products");
+    const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/products`);
     setProducts(res.data);
 
     // extract unique categories from fetched products
@@ -35,7 +35,7 @@ function App() {
 
     // backend update async
     try {
-      await axios.post("http://localhost:5000/api/products/update", { id, field, change });
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, { id, field, change });
     } catch (err) {
       console.error(err);
       // optional: error aaya toh revert karne ka logic yaha dal sakte ho
@@ -49,7 +49,7 @@ function App() {
     let finalCategory = category === "new" ? newCategory : category;
     if (!finalCategory) return alert("Category required");
 
-    await axios.post("http://localhost:5000/api/products/add", {
+    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add`, {
       name,
       stock: Number(stock),
       category: finalCategory,
@@ -103,7 +103,7 @@ function App() {
       {isAdmin && (
         <button
           onClick={async () => {
-            await axios.post("http://localhost:5000/api/products/finish");
+            await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
             loadProducts();
           }}
           style={{
