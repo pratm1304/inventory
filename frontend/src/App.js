@@ -12,8 +12,15 @@ function App() {
   const [categories, setCategories] = useState([]); 
 
   useEffect(() => {
-    loadProducts();
-  }, []);
+  loadProducts(); // page open होते ही 1 बार
+
+  const interval = setInterval(() => {
+    loadProducts(); // हर 1 sec में backend से नया data
+  }, 1000);
+
+  return () => clearInterval(interval); // cleanup
+}, []);
+
 
   const loadProducts = async () => {
     const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/products`);
