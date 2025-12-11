@@ -7,7 +7,9 @@ import productRoutes from "./routes/productRoutes.js";
 dotenv.config();
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*" // ya Vercel frontend URL
+}));
 app.use(express.json());
 
 // Routes
