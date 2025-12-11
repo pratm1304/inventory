@@ -12,8 +12,15 @@ function App() {
   const [categories, setCategories] = useState([]); 
 
   useEffect(() => {
-  loadProducts();
+  loadProducts(); // page open होते ही 1 बार
+
+  const interval = setInterval(() => {
+    loadProducts(); // हर 1 sec में backend से नया data
+  }, 1000);
+
+  return () => clearInterval(interval); // cleanup
 }, []);
+
 
 
 
@@ -28,22 +35,21 @@ function App() {
 
   // Optimistic UI update
   const updateValue = async (id, field, change) => {
-  // optimistic update
-  setProducts(prev =>
-    prev.map(p =>
-      p._id === id ? { ...p, [field]: p[field] + change } : p
-    )
-  );
+    // frontend me turant update
+    setProducts(prev =>
+      prev.map(p =>
+        p._id === id ? { ...p, [field]: p[field] + change } : p
+      )
+    );
 
-  try {
-    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, { id, field, change });
-
-    // backend updated -> fresh data lao (NO flicker)
-    loadProducts();
-  } catch (err) {
-    console.error(err);
-  }
-};
+    // backend update async
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, { id, field, change });
+    } catch (err) {
+      console.error(err);
+      // optional: error aaya toh revert karne ka logic yaha dal sakte ho
+    }
+  };
 
 
   const addProduct = async (e) => {
