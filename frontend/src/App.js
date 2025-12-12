@@ -16,7 +16,7 @@ function App() {
 
   const interval = setInterval(() => {
     loadProducts(); // हर 1 sec में backend से नया data
-  }, 1000);
+  }, 5000);
 
   return () => clearInterval(interval); // cleanup
 }, []);
