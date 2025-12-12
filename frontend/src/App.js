@@ -7,22 +7,22 @@ function App() {
   const [stock, setStock] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [category, setCategory] = useState(""); 
-  const [newCategory, setNewCategory] = useState(""); 
-  const [categories, setCategories] = useState([]); 
+  const [category, setCategory] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [categories, setCategories] = useState([]);
 
   const [multiProducts, setMultiProducts] = useState("");
 
 
   useEffect(() => {
-  loadProducts(); // page open होते ही 1 बार
+    loadProducts(); // page open होते ही 1 बार
 
-  const interval = setInterval(() => {
-    loadProducts(); // हर 1 sec में backend से नया data
-  }, 5000);
+    const interval = setInterval(() => {
+      loadProducts(); // हर 1 sec में backend से नया data
+    }, 5000);
 
-  return () => clearInterval(interval); // cleanup
-}, []);
+    return () => clearInterval(interval); // cleanup
+  }, []);
 
 
 
@@ -74,6 +74,26 @@ function App() {
     setNewCategory("");
     loadProducts();
   };
+
+  const deleteProduct = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+
+    try {
+      const res = await axios.delete(`${process.env.REACT_APP_API_URL}/api/products/${id}`);
+
+      // agar category empty ho gayi hai → frontend se bhi hatado
+      if (res.data.deleteCategory) {
+        setCategories(prev => prev.filter(c => c !== res.data.deleteCategory));
+      }
+
+      // products reload
+      loadProducts();
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed");
+    }
+  };
+
 
   return (
     <div style={{ padding: 30 }}>
@@ -134,27 +154,27 @@ function App() {
       )}
 
       {isAdmin && (
-  <button
-    onClick={async () => {
-      if (!window.confirm("Are you sure? This will reset ALL products!")) return;
+        <button
+          onClick={async () => {
+            if (!window.confirm("Are you sure? This will reset ALL products!")) return;
 
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
-      loadProducts();
-      alert("All data reset!");
-    }}
-    style={{
-      padding: "10px 20px",
-      marginBottom: 20,
-      marginLeft: 10,
-      background: "red",
-      color: "white",
-      border: "none",
-      cursor: "pointer",
-    }}
-  >
-    Reset Data
-  </button>
-)}
+            await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
+            loadProducts();
+            alert("All data reset!");
+          }}
+          style={{
+            padding: "10px 20px",
+            marginBottom: 20,
+            marginLeft: 10,
+            background: "red",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Reset Data
+        </button>
+      )}
 
 
       {/* Add Product Form — Only Admin */}
@@ -203,42 +223,42 @@ function App() {
       )}
 
       {/* Paste multiple products */}
-{isAdmin && (
-  <div style={{ marginTop: 30 }}>
-    <h3>Add Multiple Products (Name, Stock, Category)</h3>
+      {isAdmin && (
+        <div style={{ marginTop: 30 }}>
+          <h3>Add Multiple Products (Name, Stock, Category)</h3>
 
-    <textarea
-      placeholder={`Example:\nPuff,20,Bakery\nBun,50,Bakery\nRoll,10,Snacks`}
-      value={multiProducts}
-      onChange={(e) => setMultiProducts(e.target.value)}
-      rows="6"
-      style={{ width: "100%", padding: 10, marginBottom: 10 }}
-    />
+          <textarea
+            placeholder={`Example:\nPuff,20,Bakery\nBun,50,Bakery\nRoll,10,Snacks`}
+            value={multiProducts}
+            onChange={(e) => setMultiProducts(e.target.value)}
+            rows="6"
+            style={{ width: "100%", padding: 10, marginBottom: 10 }}
+          />
 
-    <button
-      onClick={async () => {
-        if (!multiProducts.trim()) return alert("Paste product list first");
+          <button
+            onClick={async () => {
+              if (!multiProducts.trim()) return alert("Paste product list first");
 
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add-multiple`, {
-          lines: multiProducts,
-        });
+              await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add-multiple`, {
+                lines: multiProducts,
+              });
 
-        setMultiProducts("");
-        loadProducts();
-        alert("Products Added!");
-      }}
-      style={{
-        padding: "10px 20px",
-        background: "purple",
-        color: "white",
-        border: "none",
-        cursor: "pointer",
-      }}
-    >
-      Add All Products
-    </button>
-  </div>
-)}
+              setMultiProducts("");
+              loadProducts();
+              alert("Products Added!");
+            }}
+            style={{
+              padding: "10px 20px",
+              background: "purple",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Add All Products
+          </button>
+        </div>
+      )}
 
 
       {/* Products Category Wise */}
@@ -255,6 +275,7 @@ function App() {
                 <th>Sales</th>
                 <th>Zomato</th>
                 <th>Remaining</th>
+                {isAdmin && <th>Delete</th>}
               </tr>
             </thead>
             <tbody>
@@ -296,6 +317,23 @@ function App() {
                         <button onClick={() => updateValue(p._id, "zomato", 1)}>+</button>
                       </td>
                       <td><b>{remaining}</b></td>
+                      {isAdmin && (
+                        <td>
+                          <button
+                            onClick={() => deleteProduct(p._id)}
+                            style={{
+                              background: "red",
+                              color: "white",
+                              border: "none",
+                              padding: "5px 10px",
+                              cursor: "pointer"
+                            }}
+                          >
+                            ✖
+                          </button>
+                        </td>
+                      )}
+
                     </tr>
                   );
                 })}

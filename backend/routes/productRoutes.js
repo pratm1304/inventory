@@ -4,6 +4,7 @@ import { addProduct } from "../controllers/productController.js";
 import { finishDay } from "../controllers/productController.js";
 import { resetData } from "../controllers/productController.js";
 import { addMultipleProducts } from "../controllers/productController.js";
+import { deleteProduct } from "../controllers/productController.js";
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ router.post("/add", addProduct);
 router.post("/finish", finishDay);
 router.post("/reset", resetData);
 router.post("/add-multiple", addMultipleProducts);
+router.delete("/:id", deleteProduct);
 
 
 export default router;

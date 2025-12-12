@@ -127,4 +127,28 @@ export const addMultipleProducts = async (req, res) => {
   }
 };
 
+export const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const category = product.category;
+
+    // product delete
+    await Product.findByIdAndDelete(id);
+
+    // agar is category me koi product nahi bacha, return info
+    const count = await Product.countDocuments({ category });
+
+    res.json({
+      message: "Product deleted",
+      deleteCategory: count === 0 ? category : null,
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
