@@ -11,6 +11,9 @@ function App() {
   const [newCategory, setNewCategory] = useState(""); 
   const [categories, setCategories] = useState([]); 
 
+  const [multiProducts, setMultiProducts] = useState("");
+
+
   useEffect(() => {
   loadProducts(); // page open होते ही 1 बार
 
@@ -130,6 +133,30 @@ function App() {
         </button>
       )}
 
+      {isAdmin && (
+  <button
+    onClick={async () => {
+      if (!window.confirm("Are you sure? This will reset ALL products!")) return;
+
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
+      loadProducts();
+      alert("All data reset!");
+    }}
+    style={{
+      padding: "10px 20px",
+      marginBottom: 20,
+      marginLeft: 10,
+      background: "red",
+      color: "white",
+      border: "none",
+      cursor: "pointer",
+    }}
+  >
+    Reset Data
+  </button>
+)}
+
+
       {/* Add Product Form — Only Admin */}
       {isAdmin && (
         <form onSubmit={addProduct} style={{ marginBottom: 20, marginTop: 20 }}>
@@ -174,6 +201,45 @@ function App() {
           <button type="submit" style={{ padding: "8px 15px" }}>Add Product</button>
         </form>
       )}
+
+      {/* Paste multiple products */}
+{isAdmin && (
+  <div style={{ marginTop: 30 }}>
+    <h3>Add Multiple Products (Name, Stock, Category)</h3>
+
+    <textarea
+      placeholder={`Example:\nPuff,20,Bakery\nBun,50,Bakery\nRoll,10,Snacks`}
+      value={multiProducts}
+      onChange={(e) => setMultiProducts(e.target.value)}
+      rows="6"
+      style={{ width: "100%", padding: 10, marginBottom: 10 }}
+    />
+
+    <button
+      onClick={async () => {
+        if (!multiProducts.trim()) return alert("Paste product list first");
+
+        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add-multiple`, {
+          lines: multiProducts,
+        });
+
+        setMultiProducts("");
+        loadProducts();
+        alert("Products Added!");
+      }}
+      style={{
+        padding: "10px 20px",
+        background: "purple",
+        color: "white",
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      Add All Products
+    </button>
+  </div>
+)}
+
 
       {/* Products Category Wise */}
       {categories.map((cat) => (

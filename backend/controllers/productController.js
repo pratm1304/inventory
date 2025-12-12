@@ -74,3 +74,57 @@ export const finishDay = async (req, res) => {
   }
 };
 
+export const resetData = async (req, res) => {
+  try {
+    await Product.updateMany(
+      {},
+      {
+        $set: {
+          stock: 0,
+          admin: 0,
+          chef: 0,
+          sales: 0,
+          zomato: 0
+        }
+      }
+    );
+
+    res.json({ message: "All products reset successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const addMultipleProducts = async (req, res) => {
+  try {
+    const { lines } = req.body;
+    if (!lines) return res.status(400).json({ message: "No data received" });
+
+    const rows = lines
+      .split("\n")
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
+
+    const products = rows.map(r => {
+      const [name, stock, category] = r.split(",");
+
+      return {
+        name: name?.trim(),
+        stock: Number(stock) || 0,
+        category: category?.trim() || "Uncategorized",
+        admin: 0,
+        chef: 0,
+        sales: 0,
+        zomato: 0,
+      };
+    });
+
+    await Product.insertMany(products);
+
+    res.json({ message: "Multiple Products Added!" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
