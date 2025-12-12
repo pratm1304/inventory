@@ -6,14 +6,21 @@ export const getProducts = async (req, res) => {
 };
 
 export const updateField = async (req, res) => {
-  const { id, field, change } = req.body; 
-  const product = await Product.findById(id);
+  const { id, field, change } = req.body;
 
-  product[field] += change;     
-  await product.save();
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id,
+      { $inc: { [field]: change } },  // ATOMIC UPDATE
+      { new: true }
+    );
 
-  res.json(product);
+    res.json(updatedProduct);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
+
 
 
 export const addProduct = async (req, res) => {
