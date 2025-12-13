@@ -5,12 +5,14 @@ function App() {
   const [products, setProducts] = useState([]);
   const [name, setName] = useState("");
   const [stock, setStock] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState(null); // null, 'admin', 'chef', 'sales'
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [categories, setCategories] = useState([]);
   const [multiProducts, setMultiProducts] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editingName, setEditingName] = useState("");
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -42,6 +44,21 @@ function App() {
       await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, { id, field, change });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const updateProductName = async (id, newName) => {
+    if (!newName.trim()) return;
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update-name`, { id, name: newName });
+      setProducts(prev =>
+        prev.map(p => p._id === id ? { ...p, name: newName } : p)
+      );
+      setEditingProductId(null);
+      showToast("Product name updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update name");
     }
   };
 
@@ -78,17 +95,24 @@ function App() {
     }
   };
 
+  const handleLogin = (role) => {
+    const pins = {
+      admin: "1234",
+      chef: "5678",
+      sales: "9012"
+    };
+    const pin = prompt(`Enter ${role.toUpperCase()} PIN`);
+    if (pin === pins[role]) {
+      setUserRole(role);
+      showToast(`${role.charAt(0).toUpperCase() + role.slice(1)} mode activated!`);
+    } else {
+      alert("Wrong PIN");
+    }
+  };
+
   const categoryColors = [
-    "#fef3c7", // amber
-    "#dbeafe", // blue
-    "#fce7f3", // pink
-    "#d1fae5", // green
-    "#e0e7ff", // indigo
-    "#fef9c3", // yellow
-    "#fbcfe8", // fuchsia
-    "#ccfbf1", // teal
-    "#fed7aa", // orange
-    "#e9d5ff"  // purple
+    "#fef3c7", "#dbeafe", "#fce7f3", "#d1fae5", "#e0e7ff",
+    "#fef9c3", "#fbcfe8", "#ccfbf1", "#fed7aa", "#e9d5ff"
   ];
 
   return (
@@ -127,50 +151,71 @@ function App() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", borderBottom: "2px solid #e5e7eb", paddingBottom: "20px" }}>
           <h2 style={{ margin: 0, color: "#1f2937", fontSize: "28px", fontWeight: "700" }}>📦 Inventory Dashboard</h2>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            {!isAdmin && (
-              <button
-                onClick={() => {
-                  const pin = prompt("Enter Admin PIN");
-                  if (pin === "1234") {
-                    setIsAdmin(true);
-                    showToast("Admin mode activated!");
-                  } else {
-                    alert("Wrong PIN");
-                  }
-                }}
-                style={{
-                  padding: "8px 20px",
-                  background: "#667eea",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  transition: "all 0.2s"
-                }}
-                onMouseOver={(e) => e.target.style.background = "#5568d3"}
-                onMouseOut={(e) => e.target.style.background = "#667eea"}
-              >
-                🔐 Admin
-              </button>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            {!userRole && (
+              <>
+                <button
+                  onClick={() => handleLogin('admin')}
+                  style={{
+                    padding: "8px 20px",
+                    background: "#667eea",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}
+                >
+                  🔐 Admin
+                </button>
+                <button
+                  onClick={() => handleLogin('chef')}
+                  style={{
+                    padding: "8px 20px",
+                    background: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}
+                >
+                  👨‍🍳 Chef
+                </button>
+                <button
+                  onClick={() => handleLogin('sales')}
+                  style={{
+                    padding: "8px 20px",
+                    background: "#f59e0b",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}
+                >
+                  💼 Sales
+                </button>
+              </>
             )}
-            {isAdmin && (
+            {userRole && (
               <>
                 <span style={{
-                  background: "#fee2e2",
-                  color: "#dc2626",
+                  background: userRole === 'admin' ? "#fee2e2" : userRole === 'chef' ? "#d1fae5" : "#fef3c7",
+                  color: userRole === 'admin' ? "#dc2626" : userRole === 'chef' ? "#059669" : "#f59e0b",
                   padding: "6px 12px",
                   borderRadius: "6px",
                   fontSize: "12px",
                   fontWeight: "700"
                 }}>
-                  🔴 ADMIN MODE
+                  {userRole === 'admin' ? '🔴 ADMIN' : userRole === 'chef' ? '🟢 CHEF' : '🟡 SALES'} MODE
                 </span>
                 <button
                   onClick={() => {
-                    setIsAdmin(false);
+                    setUserRole(null);
                     showToast("Logged out", "error");
                   }}
                   style={{
@@ -186,110 +231,95 @@ function App() {
                 >
                   Logout
                 </button>
-                <button
-                  onClick={async () => {
-                    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
-                    loadProducts();
-                    showToast("Day finished successfully!");
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#10b981",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
-                  }}
-                >
-                  ✓ Finish Day
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!window.confirm("Are you sure? This will reset ALL products!")) return;
-                    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
-                    loadProducts();
-                    showToast("All data reset!", "error");
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
-                  }}
-                >
-                  🗑️ Reset
-                </button>
+                {userRole === 'admin' && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
+                        loadProducts();
+                        showToast("Day finished successfully!");
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#10b981",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      ✓ Finish Day
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm("Are you sure? This will reset ALL products!")) return;
+                        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
+                        loadProducts();
+                        showToast("All data reset!", "error");
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      🗑️ Reset
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
 
-        {isAdmin && (
-          <div style={{
-            background: "#f9fafb",
-            padding: "20px",
-            borderRadius: "12px",
-            marginBottom: "30px",
-            border: "1px solid #e5e7eb"
-          }}>
-            <h3 style={{ margin: "0 0 15px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Add New Product</h3>
-            <form onSubmit={addProduct} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-              <input
-                type="text"
-                placeholder="Product Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  flex: "1",
-                  minWidth: "150px"
-                }}
-              />
-              <input
-                type="number"
-                placeholder="Stock"
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  width: "100px"
-                }}
-              />
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  minWidth: "150px"
-                }}
-              >
-                <option value="">Select Category</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-                <option value="new">+ New Category</option>
-              </select>
-              {category === "new" && (
+        {userRole === 'admin' && (
+          <>
+            <div style={{
+              background: "#f9fafb",
+              padding: "20px",
+              borderRadius: "12px",
+              marginBottom: "30px",
+              border: "1px solid #e5e7eb"
+            }}>
+              <h3 style={{ margin: "0 0 15px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Add New Product</h3>
+              <form onSubmit={addProduct} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                 <input
                   type="text"
-                  placeholder="New Category Name"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="Product Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    flex: "1",
+                    minWidth: "150px"
+                  }}
+                />
+                <input
+                  type="number"
+                  placeholder="Stock"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    width: "100px"
+                  }}
+                />
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
                   style={{
                     padding: "8px 12px",
                     border: "1px solid #d1d5db",
@@ -297,10 +327,81 @@ function App() {
                     fontSize: "14px",
                     minWidth: "150px"
                   }}
-                />
-              )}
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value="new">+ New Category</option>
+                </select>
+                {category === "new" && (
+                  <input
+                    type="text"
+                    placeholder="New Category Name"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    style={{
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      minWidth: "150px"
+                    }}
+                  />
+                )}
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 20px",
+                    background: "#8b5cf6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}
+                >
+                  + Add
+                </button>
+              </form>
+            </div>
+
+            <div style={{
+              background: "#faf5ff",
+              padding: "20px",
+              borderRadius: "12px",
+              marginBottom: "30px",
+              border: "1px solid #e9d5ff"
+            }}>
+              <h3 style={{ margin: "0 0 10px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Bulk Add Products</h3>
+              <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px 0" }}>Format: Name,Stock,Category (one per line)</p>
+              <textarea
+                placeholder="Puff,20,Bakery&#10;Bun,50,Bakery&#10;Roll,10,Snacks"
+                value={multiProducts}
+                onChange={(e) => setMultiProducts(e.target.value)}
+                rows="4"
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontFamily: "monospace",
+                  marginBottom: "10px",
+                  boxSizing: "border-box"
+                }}
+              />
               <button
-                type="submit"
+                onClick={async () => {
+                  if (!multiProducts.trim()) return alert("Paste product list first");
+                  await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add-multiple`, {
+                    lines: multiProducts,
+                  });
+                  setMultiProducts("");
+                  loadProducts();
+                  showToast("All products added successfully!");
+                }}
                 style={{
                   padding: "8px 20px",
                   background: "#8b5cf6",
@@ -312,62 +413,10 @@ function App() {
                   fontWeight: "600"
                 }}
               >
-                + Add
+                📋 Add All
               </button>
-            </form>
-          </div>
-        )}
-
-        {isAdmin && (
-          <div style={{
-            background: "#faf5ff",
-            padding: "20px",
-            borderRadius: "12px",
-            marginBottom: "30px",
-            border: "1px solid #e9d5ff"
-          }}>
-            <h3 style={{ margin: "0 0 10px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Bulk Add Products</h3>
-            <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px 0" }}>Format: Name,Stock,Category (one per line)</p>
-            <textarea
-              placeholder="Puff,20,Bakery&#10;Bun,50,Bakery&#10;Roll,10,Snacks"
-              value={multiProducts}
-              onChange={(e) => setMultiProducts(e.target.value)}
-              rows="4"
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                fontFamily: "monospace",
-                marginBottom: "10px",
-                boxSizing: "border-box"
-              }}
-            />
-            <button
-              onClick={async () => {
-                if (!multiProducts.trim()) return alert("Paste product list first");
-                await axios.post(`${process.env.REACT_APP_API_URL}/api/products/add-multiple`, {
-                  lines: multiProducts,
-                });
-                setMultiProducts("");
-                loadProducts();
-                showToast("All products added successfully!");
-              }}
-              style={{
-                padding: "8px 20px",
-                background: "#8b5cf6",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "600"
-              }}
-            >
-              📋 Add All
-            </button>
-          </div>
+            </div>
+          </>
         )}
 
         {categories.map((cat, catIndex) => {
@@ -401,7 +450,7 @@ function App() {
                       <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Sales</th>
                       <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Zomato</th>
                       <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "90px", borderBottom: "2px solid #e5e7eb" }}>Left</th>
-                      {isAdmin && <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "70px", borderBottom: "2px solid #e5e7eb" }}>Del</th>}
+                      {userRole === 'admin' && <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "70px", borderBottom: "2px solid #e5e7eb" }}>Del</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -411,9 +460,82 @@ function App() {
                         const remaining = p.stock + p.chef - p.sales - p.zomato;
                         return (
                           <tr key={p._id} style={{ borderBottom: "1px solid #f3f4f6", background: bgColor }}>
-                            <td style={{ padding: "10px", fontWeight: "500", color: "#1f2937" }}>{p.name}</td>
+                            <td style={{ padding: "10px", fontWeight: "500", color: "#1f2937" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                {userRole === 'admin' && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingProductId(p._id);
+                                      setEditingName(p.name);
+                                    }}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "16px",
+                                      padding: "2px"
+                                    }}
+                                    title="Edit name"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                                {editingProductId === p._id ? (
+                                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                    <input
+                                      type="text"
+                                      value={editingName}
+                                      onChange={(e) => setEditingName(e.target.value)}
+                                      onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                          updateProductName(p._id, editingName);
+                                        }
+                                      }}
+                                      style={{
+                                        padding: "4px 8px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "4px",
+                                        fontSize: "14px",
+                                        width: "150px"
+                                      }}
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => updateProductName(p._id, editingName)}
+                                      style={{
+                                        background: "#10b981",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        padding: "4px 8px",
+                                        cursor: "pointer",
+                                        fontSize: "12px"
+                                      }}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingProductId(null)}
+                                      style={{
+                                        background: "#ef4444",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        padding: "4px 8px",
+                                        cursor: "pointer",
+                                        fontSize: "12px"
+                                      }}
+                                    >
+                                      ✖
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span>{p.name}</span>
+                                )}
+                              </div>
+                            </td>
                             <td style={{ padding: "10px", textAlign: "center" }}>
-                              {isAdmin ? (
+                              {userRole === 'admin' ? (
                                 <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "stock", -1)}
@@ -452,7 +574,7 @@ function App() {
                               )}
                             </td>
                             <td style={{ padding: "10px", textAlign: "center" }}>
-                              {isAdmin ? (
+                              {userRole === 'admin' ? (
                                 <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "admin", -1)}
@@ -495,109 +617,121 @@ function App() {
                               textAlign: "center",
                               background: p.admin === 0 ? "white" : p.chef < p.admin ? "#fee2e2" : "#d1fae5"
                             }}>
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
-                                <button
-                                  onClick={() => updateValue(p._id, "chef", -1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  -
-                                </button>
-                                <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.chef}</span>
-                                <button
-                                  onClick={() => updateValue(p._id, "chef", 1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
+                              {userRole === 'admin' || userRole === 'chef' ? (
+                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                  <button
+                                    onClick={() => updateValue(p._id, "chef", -1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.chef}</span>
+                                  <button
+                                    onClick={() => updateValue(p._id, "chef", 1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontWeight: "600" }}>{p.chef}</span>
+                              )}
                             </td>
                             <td style={{ padding: "10px", textAlign: "center" }}>
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
-                                <button
-                                  onClick={() => updateValue(p._id, "sales", -1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  -
-                                </button>
-                                <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.sales}</span>
-                                <button
-                                  onClick={() => updateValue(p._id, "sales", 1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
+                              {userRole === 'admin' || userRole === 'sales' ? (
+                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                  <button
+                                    onClick={() => updateValue(p._id, "sales", -1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.sales}</span>
+                                  <button
+                                    onClick={() => updateValue(p._id, "sales", 1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontWeight: "600" }}>{p.sales}</span>
+                              )}
                             </td>
                             <td style={{ padding: "10px", textAlign: "center" }}>
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
-                                <button
-                                  onClick={() => updateValue(p._id, "zomato", -1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  -
-                                </button>
-                                <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.zomato}</span>
-                                <button
-                                  onClick={() => updateValue(p._id, "zomato", 1)}
-                                  style={{
-                                    width: "28px",
-                                    height: "28px",
-                                    border: "1px solid #d1d5db",
-                                    background: "white",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    color: "#6b7280"
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
+                              {userRole === 'admin' || userRole === 'sales' ? (
+                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                  <button
+                                    onClick={() => updateValue(p._id, "zomato", -1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.zomato}</span>
+                                  <button
+                                    onClick={() => updateValue(p._id, "zomato", 1)}
+                                    style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      border: "1px solid #d1d5db",
+                                      background: "white",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "14px",
+                                      color: "#6b7280"
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontWeight: "600" }}>{p.zomato}</span>
+                              )}
                             </td>
                             <td style={{
                               padding: "10px",
@@ -608,7 +742,7 @@ function App() {
                             }}>
                               {remaining}
                             </td>
-                            {isAdmin && (
+                            {userRole === 'admin' && (
                               <td style={{ padding: "10px", textAlign: "center" }}>
                                 <button
                                   onClick={() => deleteProduct(p._id)}
