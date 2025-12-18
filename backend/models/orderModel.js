@@ -8,10 +8,13 @@ const orderItemSchema = new mongoose.Schema({
   totalPrice: { type: Number, required: true }
 });
 
-const orderSchema = new mongoose.Schema({
-  items: [orderItemSchema],
-  orderType: { type: String, enum: ['foushack', 'zomato'], required: true },
-  totalPrice: { type: Number, required: true }  // ✅ ADD THIS LINE
-}, { timestamps: true });
+const orderSchema = new mongoose.Schema(
+  {
+    items: [orderItemSchema],
+    orderType: { type: String, enum: ["foushack", "zomato"], required: true },
+    totalPrice: { type: Number, required: true }
+  },
+  { timestamps: true }
+);
 
 export default mongoose.model("Order", orderSchema);
