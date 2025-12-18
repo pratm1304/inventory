@@ -1,7 +1,8 @@
 import Product from "../models/productModel.js";
+import Category from "../models/categoryModel.js";
 
 export const getProducts = async (req, res) => {
-  const products = await Product.find({}).sort({ category: 1, order: 1 });  // SORT BY ORDER
+  const products = await Product.find({}).sort({ category: 1, order: 1 });
   res.json(products);
 };
 
@@ -30,6 +31,14 @@ export const addProduct = async (req, res) => {
     }
     if (!category) {
       return res.status(400).json({ message: "Category is required" });
+    }
+
+    // ENSURE CATEGORY EXISTS IN CATEGORY COLLECTION
+    let categoryDoc = await Category.findOne({ name: category });
+    if (!categoryDoc) {
+      const maxOrderCategory = await Category.findOne({}).sort({ order: -1 });
+      const newCategoryOrder = maxOrderCategory ? maxOrderCategory.order + 1 : 0;
+      categoryDoc = await Category.create({ name: category, order: newCategoryOrder });
     }
 
     // GET MAX ORDER IN CATEGORY
@@ -114,6 +123,14 @@ export const addMultipleProducts = async (req, res) => {
       const [name, stock, category, price] = r.split(",");
       const cat = category?.trim() || "Uncategorized";
 
+      // ENSURE CATEGORY EXISTS
+      let categoryDoc = await Category.findOne({ name: cat });
+      if (!categoryDoc) {
+        const maxOrderCategory = await Category.findOne({}).sort({ order: -1 });
+        const newCategoryOrder = maxOrderCategory ? maxOrderCategory.order + 1 : 0;
+        categoryDoc = await Category.create({ name: cat, order: newCategoryOrder });
+      }
+
       // GET MAX ORDER FOR THIS CATEGORY
       const maxOrderProduct = await Product.findOne({ category: cat }).sort({ order: -1 });
       const newOrder = maxOrderProduct ? maxOrderProduct.order + 1 : 0;
@@ -151,6 +168,11 @@ export const deleteProduct = async (req, res) => {
     await Product.findByIdAndDelete(id);
 
     const count = await Product.countDocuments({ category });
+
+    // IF NO MORE PRODUCTS IN CATEGORY, DELETE CATEGORY
+    if (count === 0) {
+      await Category.deleteOne({ name: category });
+    }
 
     res.json({
       message: "Product deleted",
@@ -210,7 +232,6 @@ export const updateProductPrice = async (req, res) => {
   }
 };
 
-// NEW REORDER FUNCTION
 export const reorderProducts = async (req, res) => {
   try {
     const { draggedId, targetId, category } = req.body;
@@ -222,19 +243,14 @@ export const reorderProducts = async (req, res) => {
       return res.status(404).json({ message: "Products not found" });
     }
 
-    // GET ALL PRODUCTS IN CATEGORY SORTED BY ORDER
     const categoryProducts = await Product.find({ category }).sort({ order: 1 });
 
     const draggedIndex = categoryProducts.findIndex(p => p._id.toString() === draggedId);
     const targetIndex = categoryProducts.findIndex(p => p._id.toString() === targetId);
 
-    // REMOVE DRAGGED ITEM
     const [removed] = categoryProducts.splice(draggedIndex, 1);
-    
-    // INSERT AT TARGET POSITION
     categoryProducts.splice(targetIndex, 0, removed);
 
-    // UPDATE ORDER FOR ALL PRODUCTS IN CATEGORY
     for (let i = 0; i < categoryProducts.length; i++) {
       await Product.findByIdAndUpdate(categoryProducts[i]._id, { order: i });
     }

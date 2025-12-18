@@ -17,6 +17,7 @@ function App() {
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editingPrice, setEditingPrice] = useState(0);
   const [draggedItem, setDraggedItem] = useState(null);
+  const [draggedCategory, setDraggedCategory] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -25,8 +26,10 @@ function App() {
 
   useEffect(() => {
     loadProducts();
+    loadCategories();
     const interval = setInterval(() => {
       loadProducts();
+      loadCategories();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -34,8 +37,11 @@ function App() {
   const loadProducts = async () => {
     const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/products`);
     setProducts(res.data);
-    const uniqueCategories = [...new Set(res.data.map(p => p.category || "Uncategorized"))];
-    setCategories(uniqueCategories);
+  };
+
+  const loadCategories = async () => {
+    const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/categories`);
+    setCategories(res.data.map(c => c.name));
   };
 
   const calculateTotalRevenue = () => {
@@ -127,6 +133,41 @@ function App() {
     setDraggedItem(null);
   };
 
+  const handleCategoryDragStart = (e, categoryName) => {
+    setDraggedCategory(categoryName);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleCategoryDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleCategoryDrop = async (e, targetCategoryName) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedCategory || draggedCategory === targetCategoryName) {
+      setDraggedCategory(null);
+      return;
+    }
+
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/categories/reorder`, {
+        draggedName: draggedCategory,
+        targetName: targetCategoryName
+      });
+      
+      await loadCategories();
+      showToast("Category order updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder categories");
+    }
+
+    setDraggedCategory(null);
+  };
+
   const addProduct = async (e) => {
     e.preventDefault();
     if (!name) return alert("Product name required");
@@ -144,6 +185,7 @@ function App() {
     setCategory("");
     setNewCategory("");
     loadProducts();
+    loadCategories();
     showToast("Product added successfully!");
   };
 
@@ -155,6 +197,7 @@ function App() {
         setCategories(prev => prev.filter(c => c !== res.data.deleteCategory));
       }
       loadProducts();
+      loadCategories();
       showToast("Product deleted successfully!", "error");
     } catch (err) {
       console.error(err);
@@ -608,6 +651,7 @@ function App() {
                   });
                   setMultiProducts("");
                   loadProducts();
+                  loadCategories();
                   showToast("All products added successfully!");
                 }}
                 style={{
@@ -644,7 +688,14 @@ function App() {
           const totalRemaining = totals.stock + totals.chef - totals.sales - totals.zomato;
 
           return (
-            <div key={cat} style={{ marginBottom: "35px" }}>
+            <div 
+              key={cat} 
+              style={{ marginBottom: "35px" }}
+              draggable={userRole === 'admin'}
+              onDragStart={(e) => handleCategoryDragStart(e, cat)}
+              onDragOver={handleCategoryDragOver}
+              onDrop={(e) => handleCategoryDrop(e, cat)}
+            >
               <h3 style={{
                 color: "#ffffff",
                 fontSize: "18px",
@@ -652,8 +703,21 @@ function App() {
                 marginBottom: "16px",
                 paddingBottom: "12px",
                 borderBottom: "1px solid rgba(255,255,255,0.1)",
-                letterSpacing: "0.3px"
+                letterSpacing: "0.3px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                cursor: userRole === 'admin' ? 'move' : 'default'
               }}>
+                {userRole === 'admin' && (
+                  <span style={{
+                    fontSize: "20px",
+                    color: "#9ca3af",
+                    userSelect: "none"
+                  }}>
+                    ⋮⋮
+                  </span>
+                )}
                 {cat}
               </h3>
               <div style={{ overflowX: "auto" }}>

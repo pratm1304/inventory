@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import productRoutes from "./routes/productRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";  // NEW IMPORT
+
 
 dotenv.config();
 const app = express();
@@ -14,6 +16,8 @@ app.use(express.json());
 
 // Normal API routes
 app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);  // NEW ROUTE
+
 
 // 🌟 1) CRON ROUTE ADD KRDO
 app.get("/cron", (req, res) => {
