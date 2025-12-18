@@ -28,6 +28,7 @@ function App() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showRevenueInBtn, setShowRevenueInBtn] = useState(false);
+  const [selectedOrderType, setSelectedOrderType] = useState('foushack'); // NEW: default foushack
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -284,56 +285,54 @@ function App() {
   };
 
   const addToCart = (product) => {
-  // Validate product has required fields
-  if (!product._id || !product.name) {
-    console.error("❌ Invalid product:", product);
-    alert("Invalid product data!");
-    return;
-  }
+    if (!product._id || !product.name) {
+      console.error("❌ Invalid product:", product);
+      alert("Invalid product data!");
+      return;
+    }
 
-  const remaining = product.stock + product.chef - product.sales - product.zomato;
-  if (remaining <= 0) {
-    alert("Product out of stock!");
-    return;
-  }
+    const remaining = product.stock + product.chef - product.sales - product.zomato;
+    if (remaining <= 0) {
+      alert("Product out of stock!");
+      return;
+    }
 
-  console.log("➕ Adding to cart:", {
-    id: product._id,
-    name: product.name,
-    price: product.price
-  });
-
-  const existingItem = cart.find(item => item.product._id === product._id);
-  
-  if (existingItem) {
-    setCart(cart.map(item => 
-      item.product._id === product._id
-        ? { ...item, qty: item.qty + 1 }
-        : item
-    ));
-  } else {
-    // Create a clean product object with only needed fields
-    const cartProduct = {
-      _id: product._id,
+    console.log("➕ Adding to cart:", {
+      id: product._id,
       name: product.name,
-      price: product.price || 200,
-      stock: product.stock,
-      chef: product.chef,
-      sales: product.sales,
-      zomato: product.zomato
-    };
+      price: product.price
+    });
+
+    const existingItem = cart.find(item => item.product._id === product._id);
     
-    setCart([...cart, { product: cartProduct, qty: 1 }]);
-  }
-  
-  setSearchTerm("");
-  setSelectedIndex(0);
-  showToast("Added to cart!");
-  
-  setTimeout(() => {
-    document.getElementById("salesSearchInput")?.focus();
-  }, 100);
-};
+    if (existingItem) {
+      setCart(cart.map(item => 
+        item.product._id === product._id
+          ? { ...item, qty: item.qty + 1 }
+          : item
+      ));
+    } else {
+      const cartProduct = {
+        _id: product._id,
+        name: product.name,
+        price: product.price || 200,
+        stock: product.stock,
+        chef: product.chef,
+        sales: product.sales,
+        zomato: product.zomato
+      };
+      
+      setCart([...cart, { product: cartProduct, qty: 1 }]);
+    }
+    
+    setSearchTerm("");
+    setSelectedIndex(0);
+    showToast("Added to cart!");
+    
+    setTimeout(() => {
+      document.getElementById("salesSearchInput")?.focus();
+    }, 100);
+  };
 
   const removeFromCart = (index) => {
     setCart(cart.filter((_, i) => i !== index));
@@ -345,6 +344,20 @@ function App() {
 
   const handleSearchKeyDown = (e) => {
     const filtered = getFilteredProducts();
+    
+    // NEW: If cart has items and search is empty, navigate between order type boxes
+    if (cart.length > 0 && !searchTerm.trim()) {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setSelectedOrderType(prev => prev === 'foushack' ? 'zomato' : 'foushack');
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        placeOrder(selectedOrderType);
+      }
+      return;
+    }
+
+    // Original search navigation logic
     if (filtered.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -362,79 +375,78 @@ function App() {
   };
 
   const placeOrder = async (orderType) => {
-  if (cart.length === 0) {
-    alert("Cart is empty!");
-    return;
-  }
-
-  try {
-    // DEBUG: Log the cart structure
-    console.log("🛒 Full Cart:", JSON.stringify(cart, null, 2));
-    
-    // Validate cart items before mapping
-    const validatedItems = cart.map((item, index) => {
-      console.log(`📦 Item ${index}:`, {
-        hasProduct: !!item.product,
-        productId: item.product?._id,
-        productName: item.product?.name,
-        productPrice: item.product?.price,
-        qty: item.qty
-      });
-
-      if (!item.product || !item.product._id || !item.product.name) {
-        throw new Error(`Invalid product in cart at index ${index}`);
-      }
-
-      return {
-        productId: item.product._id,
-        productName: item.product.name,
-        qty: item.qty,
-        price: item.product.price || 200,
-        totalPrice: (item.product.price || 200) * item.qty
-      };
-    });
-
-    const orderPayload = {
-      items: validatedItems,
-      orderType
-    };
-
-    console.log("📤 Sending payload:", JSON.stringify(orderPayload, null, 2));
-
-    const response = await axios.post(
-      `${process.env.REACT_APP_API_URL}/api/orders/create`,
-      orderPayload
-    );
-    
-    console.log("✅ Order created:", response.data);
-    
-    // Update product counts based on order type
-    for (const item of cart) {
-      const field = orderType === 'zomato' ? 'zomato' : 'sales';
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, {
-        id: item.product._id,
-        field,
-        change: item.qty
-      });
+    if (cart.length === 0) {
+      alert("Cart is empty!");
+      return;
     }
-    
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 1500);
-    
-    setCart([]);
-    loadProducts();
-    loadOrders();
-    showToast("Order placed successfully!");
-    
-    setTimeout(() => {
-      document.getElementById("salesSearchInput")?.focus();
-    }, 1600);
-  } catch (err) {
-    console.error("❌ Order Error:", err);
-    console.error("❌ Error Response:", err.response?.data);
-    alert(`Failed to place order: ${err.message}`);
-  }
-};
+
+    try {
+      console.log("🛒 Full Cart:", JSON.stringify(cart, null, 2));
+      
+      const validatedItems = cart.map((item, index) => {
+        console.log(`📦 Item ${index}:`, {
+          hasProduct: !!item.product,
+          productId: item.product?._id,
+          productName: item.product?.name,
+          productPrice: item.product?.price,
+          qty: item.qty
+        });
+
+        if (!item.product || !item.product._id || !item.product.name) {
+          throw new Error(`Invalid product in cart at index ${index}`);
+        }
+
+        return {
+          productId: item.product._id,
+          productName: item.product.name,
+          qty: item.qty,
+          price: item.product.price || 200,
+          totalPrice: (item.product.price || 200) * item.qty
+        };
+      });
+
+      const orderPayload = {
+        items: validatedItems,
+        orderType
+      };
+
+      console.log("📤 Sending payload:", JSON.stringify(orderPayload, null, 2));
+
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/orders/create`,
+        orderPayload
+      );
+      
+      console.log("✅ Order created:", response.data);
+      
+      for (const item of cart) {
+        const field = orderType === 'zomato' ? 'zomato' : 'sales';
+        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, {
+          id: item.product._id,
+          field,
+          change: item.qty
+        });
+      }
+      
+      // UPDATED: Faster success animation (0.8s instead of 1.5s)
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 800);
+      
+      setCart([]);
+      setSelectedOrderType('foushack'); // Reset to default
+      loadProducts();
+      loadOrders();
+      showToast("Order placed successfully!");
+      
+      setTimeout(() => {
+        document.getElementById("salesSearchInput")?.focus();
+      }, 900);
+    } catch (err) {
+      console.error("❌ Order Error:", err);
+      console.error("❌ Error Response:", err.response?.data);
+      alert(`Failed to place order: ${err.message}`);
+    }
+  };
 
   return (
     <div style={{ 
@@ -465,6 +477,7 @@ function App() {
         </div>
       )}
 
+      {/* UPDATED: Green background and faster animation */}
       {showSuccess && (
         <div style={{
           position: "fixed",
@@ -472,16 +485,16 @@ function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: "rgba(0,0,0,0.9)",
+          background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
           zIndex: 9999,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          animation: "fadeIn 0.3s ease-out"
+          animation: "fadeIn 0.2s ease-out"
         }}>
           <div style={{
             fontSize: "80px",
-            animation: "sparkle 1.5s ease-out"
+            animation: "sparkle 0.8s ease-out"
           }}>
             ✨🎉✨
           </div>
@@ -917,6 +930,7 @@ function App() {
                   ))}
                 </div>
 
+                {/* UPDATED: Added visual selection indicator */}
                 <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
                   <div
                     onClick={() => placeOrder("zomato")}
@@ -924,20 +938,31 @@ function App() {
                       flex: 1,
                       padding: "40px",
                       borderRadius: "16px",
-                      border: "2px solid rgba(239, 68, 68, 0.3)",
-                      background: "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)",
+                      border: selectedOrderType === 'zomato' 
+                        ? "3px solid rgba(239, 68, 68, 0.8)" 
+                        : "2px solid rgba(239, 68, 68, 0.3)",
+                      background: selectedOrderType === 'zomato'
+                        ? "linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%)"
+                        : "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)",
                       cursor: "pointer",
                       textAlign: "center",
                       transition: "all 0.3s",
-                      boxShadow: "0 4px 20px rgba(239, 68, 68, 0.2)"
+                      boxShadow: selectedOrderType === 'zomato'
+                        ? "0 8px 32px rgba(239, 68, 68, 0.5)"
+                        : "0 4px 20px rgba(239, 68, 68, 0.2)",
+                      transform: selectedOrderType === 'zomato' ? "scale(1.02)" : "scale(1)"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.05)";
-                      e.currentTarget.style.boxShadow = "0 8px 32px rgba(239, 68, 68, 0.4)";
+                      if (selectedOrderType !== 'zomato') {
+                        e.currentTarget.style.transform = "scale(1.05)";
+                        e.currentTarget.style.boxShadow = "0 8px 32px rgba(239, 68, 68, 0.4)";
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.boxShadow = "0 4px 20px rgba(239, 68, 68, 0.2)";
+                      if (selectedOrderType !== 'zomato') {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(239, 68, 68, 0.2)";
+                      }
                     }}
                   >
                     <div style={{ fontSize: "60px", marginBottom: "16px" }}>🛵</div>
@@ -955,20 +980,31 @@ function App() {
                       flex: 1,
                       padding: "40px",
                       borderRadius: "16px",
-                      border: "2px solid rgba(16, 185, 129, 0.3)",
-                      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
+                      border: selectedOrderType === 'foushack' 
+                        ? "3px solid rgba(16, 185, 129, 0.8)" 
+                        : "2px solid rgba(16, 185, 129, 0.3)",
+                      background: selectedOrderType === 'foushack'
+                        ? "linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)"
+                        : "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
                       cursor: "pointer",
                       textAlign: "center",
                       transition: "all 0.3s",
-                      boxShadow: "0 4px 20px rgba(16, 185, 129, 0.2)"
+                      boxShadow: selectedOrderType === 'foushack'
+                        ? "0 8px 32px rgba(16, 185, 129, 0.5)"
+                        : "0 4px 20px rgba(16, 185, 129, 0.2)",
+                      transform: selectedOrderType === 'foushack' ? "scale(1.02)" : "scale(1)"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.05)";
-                      e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.4)";
+                      if (selectedOrderType !== 'foushack') {
+                        e.currentTarget.style.transform = "scale(1.05)";
+                        e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.4)";
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.boxShadow = "0 4px 20px rgba(16, 185, 129, 0.2)";
+                      if (selectedOrderType !== 'foushack') {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(16, 185, 129, 0.2)";
+                      }
                     }}
                   >
                     <div style={{ fontSize: "60px", marginBottom: "16px" }}>🏪</div>
