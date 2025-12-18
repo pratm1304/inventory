@@ -3,7 +3,7 @@ import { getOrders, createOrder } from "../controllers/orderController.js";
 
 const router = express.Router();
 
-router.get("/", getOrders); // Important: Add this to fetch history
-router.post("/create", createOrder);
+router.get("/", getOrders);
+router.post("/create", createOrder);  // This line is already correct
 
 export default router;

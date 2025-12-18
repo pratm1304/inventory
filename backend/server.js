@@ -3,9 +3,8 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import productRoutes from "./routes/productRoutes.js";
-import categoryRoutes from "./routes/categoryRoutes.js";  // NEW IMPORT
-import orderRoutes from "./routes/orderRoutes.js";  // NEW IMPORT
-
+import categoryRoutes from "./routes/categoryRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -15,11 +14,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Normal API routes
+// ROUTES
 app.use("/api/products", productRoutes);
-app.use("/api/categories", categoryRoutes);  // NEW ROUTE
-app.use("/api/orders", orderRoutes);  // NEW ROUTE
-
+app.use("/api/categories", categoryRoutes);
+app.use("/api/orders", orderRoutes);
 
 // 🌟 1) CRON ROUTE ADD KRDO
 app.get("/cron", (req, res) => {
@@ -32,6 +30,7 @@ app.get("/", (req, res) => {
   res.send("Backend running...");
 });
 
+// MongoDB connection - FIXED
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
