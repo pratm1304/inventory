@@ -38,3 +38,39 @@ export const reorderCategories = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const updateCategoryName = async (req, res) => {
+  try {
+    const { oldName, newName } = req.body;
+    
+    if (!newName || !newName.trim()) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    // Update category in Category collection
+    await Category.updateOne({ name: oldName }, { name: newName.trim() });
+
+    // Update all products in this category
+    await Product.updateMany({ category: oldName }, { category: newName.trim() });
+
+    res.json({ message: "Category name updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteCategory = async (req, res) => {
+  try {
+    const { name } = req.params;
+
+    // Delete all products in this category
+    await Product.deleteMany({ category: name });
+
+    // Delete the category
+    await Category.deleteOne({ name });
+
+    res.json({ message: "Category and all its products deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

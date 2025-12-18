@@ -18,6 +18,16 @@ function App() {
   const [editingPrice, setEditingPrice] = useState(0);
   const [draggedItem, setDraggedItem] = useState(null);
   const [draggedCategory, setDraggedCategory] = useState(null);
+  const [editingCategoryName, setEditingCategoryName] = useState(null);
+  const [editingCategoryValue, setEditingCategoryValue] = useState("");
+  
+  // Sales states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [cart, setCart] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showRevenueInBtn, setShowRevenueInBtn] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -27,12 +37,18 @@ function App() {
   useEffect(() => {
     loadProducts();
     loadCategories();
+    if (userRole === 'sales' || userRole === 'admin') {
+      loadOrders();
+    }
     const interval = setInterval(() => {
       loadProducts();
       loadCategories();
+      if (userRole === 'sales' || userRole === 'admin') {
+        loadOrders();
+      }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [userRole]);
 
   const loadProducts = async () => {
     const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/products`);
@@ -42,6 +58,15 @@ function App() {
   const loadCategories = async () => {
     const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/categories`);
     setCategories(res.data.map(c => c.name));
+  };
+
+  const loadOrders = async () => {
+    try {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/orders`);
+      setOrders(res.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const calculateTotalRevenue = () => {
@@ -90,6 +115,36 @@ function App() {
     } catch (err) {
       console.error(err);
       alert("Failed to update price");
+    }
+  };
+
+  const updateCategoryName = async (oldName, newName) => {
+    if (!newName.trim()) return;
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/categories/update-name`, {
+        oldName,
+        newName: newName.trim()
+      });
+      await loadCategories();
+      await loadProducts();
+      setEditingCategoryName(null);
+      showToast("Category name updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update category name");
+    }
+  };
+
+  const deleteCategory = async (categoryName) => {
+    if (!window.confirm(`Are you sure you want to delete the category "${categoryName}" and all its products?`)) return;
+    try {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/categories/${categoryName}`);
+      await loadCategories();
+      await loadProducts();
+      showToast("Category deleted successfully!", "error");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete category");
     }
   };
 
@@ -220,6 +275,100 @@ function App() {
     }
   };
 
+  // Sales functions
+  const getFilteredProducts = () => {
+    if (!searchTerm.trim()) return [];
+    return products.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ).slice(0, 5);
+  };
+
+  const addToCart = (product) => {
+    const remaining = product.stock + product.chef - product.sales - product.zomato;
+    if (remaining <= 0) {
+      alert("Product out of stock!");
+      return;
+    }
+
+    const existingItem = cart.find(item => item.product._id === product._id);
+    if (existingItem) {
+      setCart(cart.map(item => 
+        item.product._id === product._id
+          ? { ...item, qty: item.qty + 1 }
+          : item
+      ));
+    } else {
+      setCart([...cart, { product, qty: 1 }]);
+    }
+    
+    setSearchTerm("");
+    setSelectedIndex(0);
+    showToast("Added to cart!");
+    
+    // Auto focus back to search
+    setTimeout(() => {
+      document.getElementById("salesSearchInput")?.focus();
+    }, 100);
+  };
+
+  const removeFromCart = (index) => {
+    setCart(cart.filter((_, i) => i !== index));
+  };
+
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => total + (item.product.price * item.qty), 0);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    const filtered = getFilteredProducts();
+    if (filtered.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev + 1) % filtered.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev - 1 + filtered.length) % filtered.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filtered[selectedIndex]) {
+        addToCart(filtered[selectedIndex]);
+      }
+    }
+  };
+
+  const placeOrder = async (orderType) => {
+    if (cart.length === 0) {
+      alert("Cart is empty!");
+      return;
+    }
+
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/orders/create`, {
+        items: cart.map(item => ({
+          ...item,
+          orderType
+        }))
+      });
+      
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 1500);
+      
+      setCart([]);
+      loadProducts();
+      loadOrders();
+      showToast("Order placed successfully!");
+      
+      // Auto focus back to search
+      setTimeout(() => {
+        document.getElementById("salesSearchInput")?.focus();
+      }, 1600);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to place order");
+    }
+  };
+
   return (
     <div style={{ 
       minHeight: "100vh", 
@@ -249,10 +398,42 @@ function App() {
         </div>
       )}
 
+      {showSuccess && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.9)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          animation: "fadeIn 0.3s ease-out"
+        }}>
+          <div style={{
+            fontSize: "80px",
+            animation: "sparkle 1.5s ease-out"
+          }}>
+            ✨🎉✨
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideIn {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes sparkle {
+          0% { transform: scale(0) rotate(0deg); opacity: 0; }
+          50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+          100% { transform: scale(1) rotate(360deg); opacity: 0; }
         }
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
       `}</style>
@@ -366,9 +547,35 @@ function App() {
                 }}>
                   {userRole === 'admin' ? 'Admin' : userRole === 'chef' ? 'Chef' : 'Sales'} Mode
                 </span>
+                {(userRole === 'admin' || userRole === 'sales') && (
+                  <button
+                    onClick={() => setShowRevenueInBtn(!showRevenueInBtn)}
+                    style={{
+                      padding: "10px 24px",
+                      background: showRevenueInBtn 
+                        ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" 
+                        : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      letterSpacing: "0.3px",
+                      boxShadow: showRevenueInBtn 
+                        ? "0 4px 12px rgba(16,185,129,0.3)" 
+                        : "0 4px 12px rgba(139,92,246,0.3)",
+                      transition: "all 0.2s",
+                      minWidth: showRevenueInBtn ? "200px" : "auto"
+                    }}
+                  >
+                    {showRevenueInBtn ? `₹${calculateTotalRevenue().toFixed(2)}` : "See Total Revenue"}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setUserRole(null);
+                    setCart([]);
                     showToast("Logged out", "error");
                   }}
                   style={{
@@ -438,43 +645,367 @@ function App() {
           </div>
         </div>
 
-        <div style={{
-          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
-          padding: "30px",
-          borderRadius: "16px",
-          marginBottom: "40px",
-          textAlign: "center",
-          border: "1px solid rgba(16, 185, 129, 0.2)",
-          boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)"
-        }}>
-          <div style={{ 
-            fontSize: "13px", 
-            fontWeight: "600", 
-            marginBottom: "12px",
-            color: "#6ee7b7",
-            letterSpacing: "1.5px",
-            textTransform: "uppercase"
+        {userRole === 'sales' && (
+          <>
+            <div style={{ display: "flex", gap: "16px", marginBottom: "30px", alignItems: "flex-start" }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  id="salesSearchInput"
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setSelectedIndex(0);
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "24px 28px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "16px",
+                    fontSize: "24px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "#e5e7eb",
+                    boxSizing: "border-box",
+                    fontWeight: "500"
+                  }}
+                />
+                {searchTerm && getFilteredProducts().length > 0 && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    marginTop: "8px",
+                    background: "rgba(20, 20, 30, 0.98)",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    maxHeight: "400px",
+                    overflowY: "auto",
+                    zIndex: 100,
+                    padding: "8px"
+                  }}>
+                    {getFilteredProducts().map((product, index) => {
+                      const remaining = product.stock + product.chef - product.sales - product.zomato;
+                      return (
+                        <div
+                          key={product._id}
+                          onClick={() => addToCart(product)}
+                          style={{
+                            padding: "16px 20px",
+                            background: selectedIndex === index 
+                              ? "rgba(139, 92, 246, 0.2)" 
+                              : "rgba(255,255,255,0.03)",
+                            borderRadius: "8px",
+                            marginBottom: "6px",
+                            cursor: "pointer",
+                            border: selectedIndex === index 
+                              ? "2px solid rgba(139, 92, 246, 0.5)" 
+                              : "1px solid rgba(255,255,255,0.05)",
+                            transition: "all 0.2s",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center"
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: "18px", fontWeight: "600", color: "#e5e7eb", marginBottom: "4px" }}>
+                              {product.name}
+                            </div>
+                            <div style={{ fontSize: "14px", color: "#9ca3af" }}>
+                              Price: ₹{product.price || 200} | Stock: {remaining}
+                            </div>
+                          </div>
+                          {selectedIndex === index && (
+                            <div style={{
+                              fontSize: "12px",
+                              color: "#8b5cf6",
+                              fontWeight: "600",
+                              background: "rgba(139, 92, 246, 0.15)",
+                              padding: "6px 12px",
+                              borderRadius: "6px"
+                            }}>
+                              Press Enter
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              <div style={{
+                background: "rgba(30, 30, 45, 0.8)",
+                padding: "20px 28px",
+                borderRadius: "16px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                minWidth: "220px"
+              }}>
+                <div style={{ fontSize: "40px" }}>🛒</div>
+                <div>
+                  <div style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "4px" }}>Cart</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#10b981" }}>
+                    {cart.length} items | ₹{getCartTotal()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {cart.length > 0 && (
+              <>
+                <div style={{
+                  background: "rgba(30, 30, 45, 0.6)",
+                  padding: "24px",
+                  borderRadius: "16px",
+                  marginBottom: "20px",
+                  border: "1px solid rgba(255,255,255,0.08)"
+                }}>
+                  <h3 style={{ margin: "0 0 16px 0", color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
+                    Cart Items
+                  </h3>
+                  {cart.map((item, index) => (
+                    <div key={index} style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px",
+                      background: "rgba(255,255,255,0.05)",
+                      borderRadius: "8px",
+                      marginBottom: "8px"
+                    }}>
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: "#e5e7eb" }}>
+                          {item.product.name} x {item.qty}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                          ₹{item.product.price * item.qty}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          onClick={() => {
+                            if (item.qty > 1) {
+                              setCart(cart.map((cartItem, i) => 
+                                i === index ? { ...cartItem, qty: cartItem.qty - 1 } : cartItem
+                              ));
+                            }
+                          }}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.05)",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "16px",
+                            color: "#9ca3af",
+                            fontWeight: "600"
+                          }}
+                        >
+                          −
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCart(cart.map((cartItem, i) => 
+                              i === index ? { ...cartItem, qty: cartItem.qty + 1 } : cartItem
+                            ));
+                          }}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.05)",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "16px",
+                            color: "#9ca3af",
+                            fontWeight: "600"
+                          }}
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={() => removeFromCart(index)}
+                          style={{
+                            background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "6px 12px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "600"
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
+                  <div
+                    onClick={() => placeOrder("zomato")}
+                    style={{
+                      flex: 1,
+                      padding: "40px",
+                      borderRadius: "16px",
+                      border: "2px solid rgba(239, 68, 68, 0.3)",
+                      background: "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.3s",
+                      boxShadow: "0 4px 20px rgba(239, 68, 68, 0.2)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.05)";
+                      e.currentTarget.style.boxShadow = "0 8px 32px rgba(239, 68, 68, 0.4)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "0 4px 20px rgba(239, 68, 68, 0.2)";
+                    }}
+                  >
+                    <div style={{ fontSize: "60px", marginBottom: "16px" }}>🛵</div>
+                    <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444", marginBottom: "8px" }}>
+                      Zomato Order
+                    </div>
+                    <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                      ₹{getCartTotal()}
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => placeOrder("foushack")}
+                    style={{
+                      flex: 1,
+                      padding: "40px",
+                      borderRadius: "16px",
+                      border: "2px solid rgba(16, 185, 129, 0.3)",
+                      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.3s",
+                      boxShadow: "0 4px 20px rgba(16, 185, 129, 0.2)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.05)";
+                      e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.4)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "0 4px 20px rgba(16, 185, 129, 0.2)";
+                    }}
+                  >
+                    <div style={{ fontSize: "60px", marginBottom: "16px" }}>🏪</div>
+                    <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981", marginBottom: "8px" }}>
+                      FouShack Order
+                    </div>
+                    <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                      ₹{getCartTotal()}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div style={{
+              background: "rgba(30, 30, 45, 0.6)",
+              padding: "24px",
+              borderRadius: "16px",
+              border: "1px solid rgba(255,255,255,0.08)"
+            }}>
+              <h3 style={{ margin: "0 0 16px 0", color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
+                Recent Orders
+              </h3>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Sr No.</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Time</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Product</th>
+                      <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Qty</th>
+                      <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Type</th>
+                      <th style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((order, index) => (
+                      <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <td style={{ padding: "12px", color: "#e5e7eb" }}>{orders.length - index}</td>
+                        <td style={{ padding: "12px", color: "#e5e7eb" }}>
+                          {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td style={{ padding: "12px", color: "#e5e7eb" }}>
+                          {order.items.map(item => `${item.productName} (${item.qty})`).join(', ')}
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center", color: "#e5e7eb" }}>
+                          {order.items.reduce((sum, item) => sum + item.qty, 0)}
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center" }}>
+                          <span style={{ fontSize: "20px" }}>
+                            {order.orderType === 'zomato' ? '🛵' : '🏪'}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#10b981" }}>
+                          ₹{order.totalPrice}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {userRole !== 'chef' && userRole !== 'sales' && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
+            padding: "30px",
+            borderRadius: "16px",
+            marginBottom: "40px",
+            textAlign: "center",
+            border: "1px solid rgba(16, 185, 129, 0.2)",
+            boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)"
           }}>
-            Total Revenue
+            <div style={{ 
+              fontSize: "13px", 
+              fontWeight: "600", 
+              marginBottom: "12px",
+              color: "#6ee7b7",
+              letterSpacing: "1.5px",
+              textTransform: "uppercase"
+            }}>
+              Total Revenue
+            </div>
+            <div style={{ 
+              fontSize: "48px", 
+              fontWeight: "800",
+              color: "#10b981",
+              letterSpacing: "-1px"
+            }}>
+              ₹{calculateTotalRevenue().toFixed(2)}
+            </div>
+            <div style={{ 
+              fontSize: "12px", 
+              fontWeight: "500",
+              color: "#6ee7b7",
+              marginTop: "8px",
+              letterSpacing: "0.5px"
+            }}>
+              Sales + Zomato Combined
+            </div>
           </div>
-          <div style={{ 
-            fontSize: "48px", 
-            fontWeight: "800",
-            color: "#10b981",
-            letterSpacing: "-1px"
-          }}>
-            ₹{calculateTotalRevenue().toFixed(2)}
-          </div>
-          <div style={{ 
-            fontSize: "12px", 
-            fontWeight: "500",
-            color: "#6ee7b7",
-            marginTop: "8px",
-            letterSpacing: "0.5px"
-          }}>
-            Sales + Zomato Combined
-          </div>
-        </div>
+        )}
 
         {userRole === 'admin' && (
           <>
@@ -575,7 +1106,7 @@ function App() {
                       fontSize: "14px",
                       minWidth: "150px",
                       background: "rgba(255,255,255,0.05)",
-                      color: "#ffffffff"
+                      color: "#ffffff"
                     }}
                   />
                 )}
@@ -673,7 +1204,7 @@ function App() {
           </>
         )}
 
-        {categories.map((cat, catIndex) => {
+        {userRole !== 'sales' && categories.map((cat, catIndex) => {
           const bgColor = `rgba(${30 + catIndex * 5}, ${30 + catIndex * 5}, ${45 + catIndex * 5}, 0.4)`;
           
           const categoryProducts = products.filter(p => (p.category || "Uncategorized") === cat);
@@ -686,6 +1217,7 @@ function App() {
           }), { stock: 0, admin: 0, chef: 0, sales: 0, zomato: 0 });
 
           const totalRemaining = totals.stock + totals.chef - totals.sales - totals.zomato;
+          const totalTask = totals.admin - totals.chef;
 
           return (
             <div 
@@ -718,7 +1250,102 @@ function App() {
                     ⋮⋮
                   </span>
                 )}
-                {cat}
+                {editingCategoryName === cat ? (
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      value={editingCategoryValue}
+                      onChange={(e) => setEditingCategoryValue(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          updateCategoryName(cat, editingCategoryValue);
+                        }
+                      }}
+                      style={{
+                        padding: "6px 10px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        fontSize: "16px",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "#e5e7eb"
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => updateCategoryName(cat, editingCategoryValue)}
+                      style={{
+                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => setEditingCategoryName(null)}
+                      style={{
+                        background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span>{cat}</span>
+                    {userRole === 'admin' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingCategoryName(cat);
+                            setEditingCategoryValue(cat);
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "15px",
+                            padding: "4px",
+                            color: "#9ca3af",
+                            transition: "color 0.2s"
+                          }}
+                          title="Edit category name"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => deleteCategory(cat)}
+                          style={{
+                            background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "4px 10px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            boxShadow: "0 2px 8px rgba(220,38,38,0.3)"
+                          }}
+                          title="Delete category"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
               </h3>
               <div style={{ overflowX: "auto" }}>
                 <table style={{
@@ -783,7 +1410,7 @@ function App() {
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Chef</th>
-                      <th style={{ 
+                      {userRole === 'chef' && <th style={{ 
                         padding: "14px", 
                         textAlign: "center", 
                         fontWeight: "600", 
@@ -793,8 +1420,8 @@ function App() {
                         fontSize: "12px",
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
-                      }}>Sales</th>
-                      <th style={{ 
+                      }}>Task</th>}
+                      {userRole !== 'chef' && <th style={{ 
                         padding: "14px", 
                         textAlign: "center", 
                         fontWeight: "600", 
@@ -804,8 +1431,19 @@ function App() {
                         fontSize: "12px",
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
-                      }}>Zomato</th>
-                      <th style={{ 
+                      }}>Sales</th>}
+                      {userRole !== 'chef' && <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Zomato</th>}
+                      {userRole !== 'chef' && <th style={{ 
                         padding: "14px", 
                         textAlign: "center", 
                         fontWeight: "600", 
@@ -815,7 +1453,7 @@ function App() {
                         fontSize: "12px",
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
-                      }}>Remaining</th>
+                      }}>Remaining</th>}
                       {userRole === 'admin' && <th style={{ 
                         padding: "14px", 
                         textAlign: "center", 
@@ -832,6 +1470,7 @@ function App() {
                   <tbody>
                     {categoryProducts.map((p, index) => {
                         const remaining = p.stock + p.chef - p.sales - p.zomato;
+                        const task = p.admin - p.chef;
                         return (
                           <tr 
                             key={p._id} 
@@ -934,7 +1573,6 @@ function App() {
                                 ) : (
                                   <span style={{ fontSize: "14px" }}>
                                     {p.name}
-                                    {userRole !== 'admin' && <span style={{ color: "#6b7280", fontSize: "11px", marginLeft: "8px", fontWeight: "400" }}>(₹{p.price || 200})</span>}
                                   </span>
                                 )}
                               </div>
@@ -1156,98 +1794,116 @@ function App() {
                                 <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.chef}</span>
                               )}
                             </td>
-                            <td style={{ padding: "14px", textAlign: "center" }}>
-                              {userRole === 'admin' || userRole === 'sales' ? (
-                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
-                                  <button
-                                    onClick={() => updateValue(p._id, "sales", -1)}
-                                    style={{
-                                      width: "32px",
-                                      height: "32px",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      background: "rgba(255,255,255,0.05)",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "16px",
-                                      color: "#9ca3af",
-                                      fontWeight: "600"
-                                    }}
-                                  >
-                                    −
-                                  </button>
-                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.sales}</span>
-                                  <button
-                                    onClick={() => updateValue(p._id, "sales", 1)}
-                                    style={{
-                                      width: "32px",
-                                      height: "32px",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      background: "rgba(255,255,255,0.05)",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "16px",
-                                      color: "#9ca3af",
-                                      fontWeight: "600"
-                                    }}
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              ) : (
-                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.sales}</span>
-                              )}
-                            </td>
-                            <td style={{ padding: "14px", textAlign: "center" }}>
-                              {userRole === 'admin' || userRole === 'sales' ? (
-                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
-                                  <button
-                                    onClick={() => updateValue(p._id, "zomato", -1)}
-                                    style={{
-                                      width: "32px",
-                                      height: "32px",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      background: "rgba(255,255,255,0.05)",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "16px",
-                                      color: "#9ca3af",
-                                      fontWeight: "600"
-                                    }}
-                                  >
-                                    −
-                                  </button>
-                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.zomato}</span>
-                                  <button
-                                    onClick={() => updateValue(p._id, "zomato", 1)}
-                                    style={{
-                                      width: "32px",
-                                      height: "32px",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      background: "rgba(255,255,255,0.05)",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "16px",
-                                      color: "#9ca3af",
-                                      fontWeight: "600"
-                                    }}
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              ) : (
-                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.zomato}</span>
-                              )}
-                            </td>
-                            <td style={{
-                              padding: "14px",
-                              textAlign: "center",
-                              fontWeight: "700",
-                              fontSize: "17px",
-                              color: remaining < 0 ? "#ef4444" : "#10b981",
-                              letterSpacing: "-0.5px"
-                            }}>
-                              {remaining}
-                            </td>
+                            {userRole === 'chef' && (
+                              <td style={{
+                                padding: "14px",
+                                textAlign: "center",
+                                fontWeight: "700",
+                                fontSize: "17px",
+                                color: task > 0 ? "#ef4444" : "#10b981",
+                                letterSpacing: "-0.5px"
+                              }}>
+                                {task}
+                              </td>
+                            )}
+                            {userRole !== 'chef' && (
+                              <td style={{ padding: "14px", textAlign: "center" }}>
+                                {userRole === 'admin' || userRole === 'sales' ? (
+                                  <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
+                                    <button
+                                      onClick={() => updateValue(p._id, "sales", -1)}
+                                      style={{
+                                        width: "32px",
+                                        height: "32px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "16px",
+                                        color: "#9ca3af",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      −
+                                    </button>
+                                    <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.sales}</span>
+                                    <button
+                                      onClick={() => updateValue(p._id, "sales", 1)}
+                                      style={{
+                                        width: "32px",
+                                        height: "32px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "16px",
+                                        color: "#9ca3af",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.sales}</span>
+                                )}
+                              </td>
+                            )}
+                            {userRole !== 'chef' && (
+                              <td style={{ padding: "14px", textAlign: "center" }}>
+                                {userRole === 'admin' || userRole === 'sales' ? (
+                                  <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
+                                    <button
+                                      onClick={() => updateValue(p._id, "zomato", -1)}
+                                      style={{
+                                        width: "32px",
+                                        height: "32px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "16px",
+                                        color: "#9ca3af",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      −
+                                    </button>
+                                    <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.zomato}</span>
+                                    <button
+                                      onClick={() => updateValue(p._id, "zomato", 1)}
+                                      style={{
+                                        width: "32px",
+                                        height: "32px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "16px",
+                                        color: "#9ca3af",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.zomato}</span>
+                                )}
+                              </td>
+                            )}
+                            {userRole !== 'chef' && (
+                              <td style={{
+                                padding: "14px",
+                                textAlign: "center",
+                                fontWeight: "700",
+                                fontSize: "17px",
+                                color: remaining < 0 ? "#ef4444" : "#10b981",
+                                letterSpacing: "-0.5px"
+                              }}>
+                                {remaining}
+                              </td>
+                            )}
                             {userRole === 'admin' && (
                               <td style={{ padding: "14px", textAlign: "center" }}>
                                 <button
@@ -1301,22 +1957,40 @@ function App() {
                       }}>
                         {totals.chef}
                       </td>
-                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
-                        {totals.sales}
-                      </td>
-                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
-                        {totals.zomato}
-                      </td>
-                      <td style={{
-                        padding: "14px",
-                        textAlign: "center",
-                        fontWeight: "700",
-                        fontSize: "17px",
-                        color: totalRemaining < 0 ? "#ef4444" : "#10b981",
-                        letterSpacing: "-0.5px"
-                      }}>
-                        {totalRemaining}
-                      </td>
+                      {userRole === 'chef' && (
+                        <td style={{
+                          padding: "14px",
+                          textAlign: "center",
+                          fontWeight: "700",
+                          fontSize: "17px",
+                          color: totalTask > 0 ? "#ef4444" : "#10b981",
+                          letterSpacing: "-0.5px"
+                        }}>
+                          {totalTask}
+                        </td>
+                      )}
+                      {userRole !== 'chef' && (
+                        <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                          {totals.sales}
+                        </td>
+                      )}
+                      {userRole !== 'chef' && (
+                        <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                          {totals.zomato}
+                        </td>
+                      )}
+                      {userRole !== 'chef' && (
+                        <td style={{
+                          padding: "14px",
+                          textAlign: "center",
+                          fontWeight: "700",
+                          fontSize: "17px",
+                          color: totalRemaining < 0 ? "#ef4444" : "#10b981",
+                          letterSpacing: "-0.5px"
+                        }}>
+                          {totalRemaining}
+                        </td>
+                      )}
                       {userRole === 'admin' && <td></td>}
                     </tr>
                   </tbody>

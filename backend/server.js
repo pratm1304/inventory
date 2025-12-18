@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import productRoutes from "./routes/productRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";  // NEW IMPORT
+import orderRoutes from "./routes/orderRoutes.js";  // NEW IMPORT
 
 
 dotenv.config();
@@ -17,6 +18,7 @@ app.use(express.json());
 // Normal API routes
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);  // NEW ROUTE
+app.use("/api/orders", orderRoutes);  // NEW ROUTE
 
 
 // 🌟 1) CRON ROUTE ADD KRDO
