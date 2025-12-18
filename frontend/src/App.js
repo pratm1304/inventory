@@ -5,7 +5,8 @@ function App() {
   const [products, setProducts] = useState([]);
   const [name, setName] = useState("");
   const [stock, setStock] = useState(0);
-  const [userRole, setUserRole] = useState(null); // null, 'admin', 'chef', 'sales'
+  const [price, setPrice] = useState(200);
+  const [userRole, setUserRole] = useState(null);
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [categories, setCategories] = useState([]);
@@ -13,6 +14,9 @@ function App() {
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingName, setEditingName] = useState("");
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [editingPrice, setEditingPrice] = useState(0);
+  const [draggedItem, setDraggedItem] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -32,6 +36,12 @@ function App() {
     setProducts(res.data);
     const uniqueCategories = [...new Set(res.data.map(p => p.category || "Uncategorized"))];
     setCategories(uniqueCategories);
+  };
+
+  const calculateTotalRevenue = () => {
+    return products.reduce((total, p) => {
+      return total + ((p.sales + p.zomato) * (p.price || 200));
+    }, 0);
   };
 
   const updateValue = async (id, field, change) => {
@@ -62,6 +72,61 @@ function App() {
     }
   };
 
+  const updateProductPrice = async (id, newPrice) => {
+    if (newPrice < 0) return;
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update-price`, { id, price: newPrice });
+      setProducts(prev =>
+        prev.map(p => p._id === id ? { ...p, price: newPrice } : p)
+      );
+      setEditingPriceId(null);
+      showToast("Price updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update price");
+    }
+  };
+
+  const handleDragStart = (e, product, category) => {
+    setDraggedItem({ product, category });
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e, targetProduct, targetCategory) => {
+    e.preventDefault();
+    
+    if (!draggedItem || draggedItem.category !== targetCategory) {
+      setDraggedItem(null);
+      return;
+    }
+
+    if (draggedItem.product._id === targetProduct._id) {
+      setDraggedItem(null);
+      return;
+    }
+
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reorder`, {
+        draggedId: draggedItem.product._id,
+        targetId: targetProduct._id,
+        category: targetCategory
+      });
+      
+      await loadProducts();
+      showToast("Order updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder");
+    }
+
+    setDraggedItem(null);
+  };
+
   const addProduct = async (e) => {
     e.preventDefault();
     if (!name) return alert("Product name required");
@@ -71,9 +136,11 @@ function App() {
       name,
       stock: Number(stock),
       category: finalCategory,
+      price: Number(price)
     });
     setName("");
     setStock(0);
+    setPrice(200);
     setCategory("");
     setNewCategory("");
     loadProducts();
@@ -110,25 +177,30 @@ function App() {
     }
   };
 
-  const categoryColors = [
-    "#fef3c7", "#dbeafe", "#fce7f3", "#d1fae5", "#e0e7ff",
-    "#fef9c3", "#fbcfe8", "#ccfbf1", "#fed7aa", "#e9d5ff"
-  ];
-
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", padding: "20px" }}>
+    <div style={{ 
+      minHeight: "100vh", 
+      background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%)", 
+      padding: "40px 20px",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    }}>
       {toast.show && (
         <div style={{
           position: "fixed",
-          top: "20px",
-          right: "20px",
-          background: toast.type === "error" ? "#ef4444" : "#10b981",
+          top: "30px",
+          right: "30px",
+          background: toast.type === "error" 
+            ? "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" 
+            : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
           color: "white",
-          padding: "12px 24px",
-          borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          padding: "14px 28px",
+          borderRadius: "10px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
           zIndex: 1000,
-          animation: "slideIn 0.3s ease-out"
+          animation: "slideIn 0.3s ease-out",
+          fontSize: "14px",
+          fontWeight: "500",
+          letterSpacing: "0.3px"
         }}>
           {toast.message}
         </div>
@@ -139,79 +211,117 @@ function App() {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
       `}</style>
 
       <div style={{
-        maxWidth: "1200px",
+        maxWidth: "1400px",
         margin: "0 auto",
-        background: "white",
-        borderRadius: "16px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        padding: "30px"
+        background: "rgba(20, 20, 30, 0.7)",
+        backdropFilter: "blur(20px)",
+        borderRadius: "20px",
+        boxShadow: "0 25px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+        padding: "40px",
+        border: "1px solid rgba(255,255,255,0.08)"
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", borderBottom: "2px solid #e5e7eb", paddingBottom: "20px" }}>
-          <h2 style={{ margin: 0, color: "#1f2937", fontSize: "28px", fontWeight: "700" }}>📦 Inventory Dashboard</h2>
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          marginBottom: "35px", 
+          paddingBottom: "25px",
+          borderBottom: "1px solid rgba(255,255,255,0.1)"
+        }}>
+          <h2 style={{ 
+            margin: 0, 
+            color: "#ffffff", 
+            fontSize: "32px", 
+            fontWeight: "700",
+            letterSpacing: "-0.5px"
+          }}>
+            Fou Shack
+          </h2>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             {!userRole && (
               <>
                 <button
                   onClick={() => handleLogin('admin')}
                   style={{
-                    padding: "8px 20px",
-                    background: "#667eea",
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
                     color: "white",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    letterSpacing: "0.3px",
+                    boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
+                    transition: "all 0.2s"
                   }}
                 >
-                  🔐 Admin
+                  Admin
                 </button>
                 <button
                   onClick={() => handleLogin('chef')}
                   style={{
-                    padding: "8px 20px",
-                    background: "#10b981",
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                     color: "white",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    letterSpacing: "0.3px",
+                    boxShadow: "0 4px 12px rgba(16,185,129,0.3)",
+                    transition: "all 0.2s"
                   }}
                 >
-                  👨‍🍳 Chef
+                  Chef
                 </button>
                 <button
                   onClick={() => handleLogin('sales')}
                   style={{
-                    padding: "8px 20px",
-                    background: "#f59e0b",
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
                     color: "white",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    letterSpacing: "0.3px",
+                    boxShadow: "0 4px 12px rgba(245,158,11,0.3)",
+                    transition: "all 0.2s"
                   }}
                 >
-                  💼 Sales
+                  Sales
                 </button>
               </>
             )}
             {userRole && (
               <>
                 <span style={{
-                  background: userRole === 'admin' ? "#fee2e2" : userRole === 'chef' ? "#d1fae5" : "#fef3c7",
-                  color: userRole === 'admin' ? "#dc2626" : userRole === 'chef' ? "#059669" : "#f59e0b",
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: "700"
+                  background: userRole === 'admin' 
+                    ? "rgba(239, 68, 68, 0.15)" 
+                    : userRole === 'chef' 
+                    ? "rgba(16, 185, 129, 0.15)" 
+                    : "rgba(245, 158, 11, 0.15)",
+                  color: userRole === 'admin' 
+                    ? "#ef4444" 
+                    : userRole === 'chef' 
+                    ? "#10b981" 
+                    : "#f59e0b",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                  border: `1px solid ${userRole === 'admin' ? 'rgba(239, 68, 68, 0.3)' : userRole === 'chef' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
                 }}>
-                  {userRole === 'admin' ? '🔴 ADMIN' : userRole === 'chef' ? '🟢 CHEF' : '🟡 SALES'} MODE
+                  {userRole === 'admin' ? 'Admin' : userRole === 'chef' ? 'Chef' : 'Sales'} Mode
                 </span>
                 <button
                   onClick={() => {
@@ -219,14 +329,16 @@ function App() {
                     showToast("Logged out", "error");
                   }}
                   style={{
-                    padding: "8px 16px",
-                    background: "#6b7280",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
+                    padding: "10px 20px",
+                    background: "rgba(107, 114, 128, 0.2)",
+                    color: "#9ca3af",
+                    border: "1px solid rgba(107, 114, 128, 0.3)",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    letterSpacing: "0.3px",
+                    transition: "all 0.2s"
                   }}
                 >
                   Logout
@@ -240,17 +352,19 @@ function App() {
                         showToast("Day finished successfully!");
                       }}
                       style={{
-                        padding: "8px 16px",
-                        background: "#10b981",
+                        padding: "10px 20px",
+                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                         color: "white",
                         border: "none",
-                        borderRadius: "6px",
+                        borderRadius: "8px",
                         cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "600"
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        letterSpacing: "0.3px",
+                        boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
                       }}
                     >
-                      ✓ Finish Day
+                      Finish Day
                     </button>
                     <button
                       onClick={async () => {
@@ -260,17 +374,19 @@ function App() {
                         showToast("All data reset!", "error");
                       }}
                       style={{
-                        padding: "8px 16px",
-                        background: "#ef4444",
+                        padding: "10px 20px",
+                        background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
                         color: "white",
                         border: "none",
-                        borderRadius: "6px",
+                        borderRadius: "8px",
                         cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "600"
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        letterSpacing: "0.3px",
+                        boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
                       }}
                     >
-                      🗑️ Reset
+                      Reset
                     </button>
                   </>
                 )}
@@ -279,16 +395,63 @@ function App() {
           </div>
         </div>
 
+        <div style={{
+          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
+          padding: "30px",
+          borderRadius: "16px",
+          marginBottom: "40px",
+          textAlign: "center",
+          border: "1px solid rgba(16, 185, 129, 0.2)",
+          boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)"
+        }}>
+          <div style={{ 
+            fontSize: "13px", 
+            fontWeight: "600", 
+            marginBottom: "12px",
+            color: "#6ee7b7",
+            letterSpacing: "1.5px",
+            textTransform: "uppercase"
+          }}>
+            Total Revenue
+          </div>
+          <div style={{ 
+            fontSize: "48px", 
+            fontWeight: "800",
+            color: "#10b981",
+            letterSpacing: "-1px"
+          }}>
+            ₹{calculateTotalRevenue().toFixed(2)}
+          </div>
+          <div style={{ 
+            fontSize: "12px", 
+            fontWeight: "500",
+            color: "#6ee7b7",
+            marginTop: "8px",
+            letterSpacing: "0.5px"
+          }}>
+            Sales + Zomato Combined
+          </div>
+        </div>
+
         {userRole === 'admin' && (
           <>
             <div style={{
-              background: "#f9fafb",
-              padding: "20px",
-              borderRadius: "12px",
+              background: "rgba(30, 30, 45, 0.6)",
+              padding: "28px",
+              borderRadius: "16px",
               marginBottom: "30px",
-              border: "1px solid #e5e7eb"
+              border: "1px solid rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px)"
             }}>
-              <h3 style={{ margin: "0 0 15px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Add New Product</h3>
+              <h3 style={{ 
+                margin: "0 0 20px 0", 
+                color: "#e5e7eb", 
+                fontSize: "16px", 
+                fontWeight: "600",
+                letterSpacing: "0.5px"
+              }}>
+                Add New Product
+              </h3>
               <form onSubmit={addProduct} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                 <input
                   type="text"
@@ -296,12 +459,15 @@ function App() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   style={{
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "6px",
+                    padding: "10px 14px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
                     fontSize: "14px",
                     flex: "1",
-                    minWidth: "150px"
+                    minWidth: "150px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "#e5e7eb",
+                    transition: "all 0.2s"
                   }}
                 />
                 <input
@@ -310,29 +476,48 @@ function App() {
                   value={stock}
                   onChange={(e) => setStock(e.target.value)}
                   style={{
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "6px",
+                    padding: "10px 14px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
                     fontSize: "14px",
-                    width: "100px"
+                    width: "80px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "#e5e7eb"
+                  }}
+                />
+                <input
+                  type="number"
+                  placeholder="Price (₹)"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  style={{
+                    padding: "10px 14px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    width: "100px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "#e5e7eb"
                   }}
                 />
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   style={{
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "6px",
+                    padding: "10px 14px",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "8px",
                     fontSize: "14px",
-                    minWidth: "150px"
+                    minWidth: "150px",
+                    background: "rgba(30, 30, 45, 0.8)",
+                    color: "#e5e7eb"
                   }}
                 >
-                  <option value="">Select Category</option>
+                  <option value="" style={{ background: "rgba(30, 30, 45, 1)" }}>Select Category</option>
                   {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c} style={{ background: "rgba(30, 30, 45, 1)" }}>{c}</option>
                   ))}
-                  <option value="new">+ New Category</option>
+                  <option value="new" style={{ background: "rgba(30, 30, 45, 1)" }}>+ New Category</option>
                 </select>
                 {category === "new" && (
                   <input
@@ -341,55 +526,78 @@ function App() {
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
                     style={{
-                      padding: "8px 12px",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "6px",
+                      padding: "10px 14px",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "8px",
                       fontSize: "14px",
-                      minWidth: "150px"
+                      minWidth: "150px",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#ffffffff"
                     }}
                   />
                 )}
                 <button
                   type="submit"
                   style={{
-                    padding: "8px 20px",
-                    background: "#8b5cf6",
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
                     color: "white",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600"
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    letterSpacing: "0.3px",
+                    boxShadow: "0 4px 12px rgba(139,92,246,0.3)"
                   }}
                 >
-                  + Add
+                  Add Product
                 </button>
               </form>
             </div>
 
             <div style={{
-              background: "#faf5ff",
-              padding: "20px",
-              borderRadius: "12px",
-              marginBottom: "30px",
-              border: "1px solid #e9d5ff"
+              background: "rgba(30, 30, 45, 0.6)",
+              padding: "28px",
+              borderRadius: "16px",
+              marginBottom: "40px",
+              border: "1px solid rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px)"
             }}>
-              <h3 style={{ margin: "0 0 10px 0", color: "#374151", fontSize: "16px", fontWeight: "600" }}>Bulk Add Products</h3>
-              <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 10px 0" }}>Format: Name,Stock,Category (one per line)</p>
+              <h3 style={{ 
+                margin: "0 0 12px 0", 
+                color: "#e5e7eb", 
+                fontSize: "16px", 
+                fontWeight: "600",
+                letterSpacing: "0.5px"
+              }}>
+                Bulk Add Products
+              </h3>
+              <p style={{ 
+                fontSize: "12px", 
+                color: "#9ca3af", 
+                margin: "0 0 16px 0",
+                fontWeight: "400"
+              }}>
+                Format: Name,Stock,Category,Price (one per line)
+              </p>
               <textarea
-                placeholder="Puff,20,Bakery&#10;Bun,50,Bakery&#10;Roll,10,Snacks"
+                placeholder="Puff,20,Bakery,150&#10;Bun,50,Bakery,100&#10;Roll,10,Snacks,200"
                 value={multiProducts}
                 onChange={(e) => setMultiProducts(e.target.value)}
                 rows="4"
                 style={{
                   width: "100%",
-                  padding: "10px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  fontFamily: "monospace",
-                  marginBottom: "10px",
-                  boxSizing: "border-box"
+                  padding: "14px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontFamily: "'Fira Code', 'Courier New', monospace",
+                  marginBottom: "16px",
+                  boxSizing: "border-box",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "#e5e7eb",
+                  resize: "vertical"
                 }}
               />
               <button
@@ -403,34 +611,48 @@ function App() {
                   showToast("All products added successfully!");
                 }}
                 style={{
-                  padding: "8px 20px",
-                  background: "#8b5cf6",
+                  padding: "10px 24px",
+                  background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
                   color: "white",
                   border: "none",
-                  borderRadius: "6px",
+                  borderRadius: "8px",
                   cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600"
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  letterSpacing: "0.3px",
+                  boxShadow: "0 4px 12px rgba(139,92,246,0.3)"
                 }}
               >
-                📋 Add All
+                Add All Products
               </button>
             </div>
           </>
         )}
 
         {categories.map((cat, catIndex) => {
-          const bgColor = categoryColors[catIndex % categoryColors.length];
+          const bgColor = `rgba(${30 + catIndex * 5}, ${30 + catIndex * 5}, ${45 + catIndex * 5}, 0.4)`;
           
+          const categoryProducts = products.filter(p => (p.category || "Uncategorized") === cat);
+          const totals = categoryProducts.reduce((acc, p) => ({
+            stock: acc.stock + p.stock,
+            admin: acc.admin + p.admin,
+            chef: acc.chef + p.chef,
+            sales: acc.sales + p.sales,
+            zomato: acc.zomato + p.zomato
+          }), { stock: 0, admin: 0, chef: 0, sales: 0, zomato: 0 });
+
+          const totalRemaining = totals.stock + totals.chef - totals.sales - totals.zomato;
+
           return (
-            <div key={cat} style={{ marginBottom: "30px" }}>
+            <div key={cat} style={{ marginBottom: "35px" }}>
               <h3 style={{
-                color: "#374151",
+                color: "#ffffff",
                 fontSize: "18px",
                 fontWeight: "700",
-                marginBottom: "12px",
-                paddingBottom: "8px",
-                borderBottom: "2px solid #e5e7eb"
+                marginBottom: "16px",
+                paddingBottom: "12px",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                letterSpacing: "0.3px"
               }}>
                 {cat}
               </h3>
@@ -438,30 +660,140 @@ function App() {
                 <table style={{
                   width: "100%",
                   borderCollapse: "collapse",
-                  fontSize: "14px",
-                  background: "white"
+                  fontSize: "13px",
+                  background: "transparent"
                 }}>
                   <thead>
-                    <tr style={{ background: "#f3f4f6" }}>
-                      <th style={{ padding: "10px", textAlign: "left", fontWeight: "600", color: "#374151", borderBottom: "2px solid #e5e7eb" }}>Product</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "80px", borderBottom: "2px solid #e5e7eb" }}>Stock</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Admin</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Chef</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Sales</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "110px", borderBottom: "2px solid #e5e7eb" }}>Zomato</th>
-                      <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "90px", borderBottom: "2px solid #e5e7eb" }}>Left</th>
-                      {userRole === 'admin' && <th style={{ padding: "10px", textAlign: "center", fontWeight: "600", color: "#374151", width: "70px", borderBottom: "2px solid #e5e7eb" }}>Del</th>}
+                    <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "left", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Product</th>
+                      {userRole === 'admin' && <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Price</th>}
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "80px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Stock</th>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Admin</th>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Chef</th>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Sales</th>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "110px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Zomato</th>
+                      <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "90px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Remaining</th>
+                      {userRole === 'admin' && <th style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "600", 
+                        color: "#9ca3af", 
+                        width: "70px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "12px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase"
+                      }}>Delete</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {products
-                      .filter(p => (p.category || "Uncategorized") === cat)
-                      .map(p => {
+                    {categoryProducts.map((p, index) => {
                         const remaining = p.stock + p.chef - p.sales - p.zomato;
                         return (
-                          <tr key={p._id} style={{ borderBottom: "1px solid #f3f4f6", background: bgColor }}>
-                            <td style={{ padding: "10px", fontWeight: "500", color: "#1f2937" }}>
+                          <tr 
+                            key={p._id} 
+                            draggable={userRole === 'admin'}
+                            onDragStart={(e) => handleDragStart(e, p, cat)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, p, cat)}
+                            style={{ 
+                              borderBottom: "1px solid rgba(255,255,255,0.05)", 
+                              background: bgColor,
+                              transition: "all 0.2s",
+                              cursor: userRole === 'admin' ? 'move' : 'default'
+                            }}
+                          >
+                            <td style={{ padding: "14px", fontWeight: "500", color: "#e5e7eb" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                {userRole === 'admin' && (
+                                  <span style={{
+                                    fontSize: "18px",
+                                    color: "#9ca3af",
+                                    cursor: "move",
+                                    userSelect: "none"
+                                  }}>
+                                    ⋮⋮
+                                  </span>
+                                )}
                                 {userRole === 'admin' && (
                                   <button
                                     onClick={() => {
@@ -472,16 +804,18 @@ function App() {
                                       background: "transparent",
                                       border: "none",
                                       cursor: "pointer",
-                                      fontSize: "16px",
-                                      padding: "2px"
+                                      fontSize: "15px",
+                                      padding: "4px",
+                                      color: "#9ca3af",
+                                      transition: "color 0.2s"
                                     }}
                                     title="Edit name"
                                   >
-                                    ✏️
+                                    ✎
                                   </button>
                                 )}
                                 {editingProductId === p._id ? (
-                                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                     <input
                                       type="text"
                                       value={editingName}
@@ -492,24 +826,27 @@ function App() {
                                         }
                                       }}
                                       style={{
-                                        padding: "4px 8px",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "4px",
+                                        padding: "6px 10px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        borderRadius: "6px",
                                         fontSize: "14px",
-                                        width: "150px"
+                                        width: "150px",
+                                        background: "rgba(255,255,255,0.05)",
+                                        color: "#e5e7eb"
                                       }}
                                       autoFocus
                                     />
                                     <button
                                       onClick={() => updateProductName(p._id, editingName)}
                                       style={{
-                                        background: "#10b981",
+                                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                                         color: "white",
                                         border: "none",
-                                        borderRadius: "4px",
-                                        padding: "4px 8px",
+                                        borderRadius: "6px",
+                                        padding: "6px 10px",
                                         cursor: "pointer",
-                                        fontSize: "12px"
+                                        fontSize: "11px",
+                                        fontWeight: "600"
                                       }}
                                     >
                                       ✓
@@ -517,253 +854,407 @@ function App() {
                                     <button
                                       onClick={() => setEditingProductId(null)}
                                       style={{
-                                        background: "#ef4444",
+                                        background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
                                         color: "white",
                                         border: "none",
-                                        borderRadius: "4px",
-                                        padding: "4px 8px",
+                                        borderRadius: "6px",
+                                        padding: "6px 10px",
                                         cursor: "pointer",
-                                        fontSize: "12px"
+                                        fontSize: "11px",
+                                        fontWeight: "600"
                                       }}
                                     >
-                                      ✖
+                                      ✕
                                     </button>
                                   </div>
                                 ) : (
-                                  <span>{p.name}</span>
+                                  <span style={{ fontSize: "14px" }}>
+                                    {p.name}
+                                    {userRole !== 'admin' && <span style={{ color: "#6b7280", fontSize: "11px", marginLeft: "8px", fontWeight: "400" }}>(₹{p.price || 200})</span>}
+                                  </span>
                                 )}
                               </div>
                             </td>
-                            <td style={{ padding: "10px", textAlign: "center" }}>
+                            {userRole === 'admin' && (
+                              <td style={{ padding: "14px", textAlign: "center" }}>
+                                {editingPriceId === p._id ? (
+                                  <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                    <input
+                                      type="number"
+                                      value={editingPrice}
+                                      onChange={(e) => setEditingPrice(e.target.value)}
+                                      onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                          updateProductPrice(p._id, editingPrice);
+                                        }
+                                      }}
+                                      style={{
+                                        padding: "6px 10px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        borderRadius: "6px",
+                                        fontSize: "13px",
+                                        width: "70px",
+                                        background: "rgba(255,255,255,0.05)",
+                                        color: "#e5e7eb"
+                                      }}
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => updateProductPrice(p._id, editingPrice)}
+                                      style={{
+                                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "6px",
+                                        padding: "6px 8px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingPriceId(null)}
+                                      style={{
+                                        background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "6px",
+                                        padding: "6px 8px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "600"
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}>
+                                    <span style={{ fontWeight: "600", color: "#10b981" }}>₹{p.price || 200}</span>
+                                    <button
+                                      onClick={() => {
+                                        setEditingPriceId(p._id);
+                                        setEditingPrice(p.price || 200);
+                                      }}
+                                      style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                        padding: "4px",
+                                        color: "#9ca3af"
+                                      }}
+                                      title="Edit price"
+                                    >
+                                      ✎
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            )}
+                            <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' ? (
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "stock", -1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600",
+                                      transition: "all 0.2s"
                                     }}
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center", color: "#6b7280" }}>{p.stock}</span>
+                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#9ca3af" }}>{p.stock}</span>
                                   <button
                                     onClick={() => updateValue(p._id, "stock", 1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600",
+                                      transition: "all 0.2s"
                                     }}
                                   >
                                     +
                                   </button>
                                 </div>
                               ) : (
-                                <span style={{ fontWeight: "600", color: "#6b7280" }}>{p.stock}</span>
+                                <span style={{ fontWeight: "600", color: "#9ca3af" }}>{p.stock}</span>
                               )}
                             </td>
-                            <td style={{ padding: "10px", textAlign: "center" }}>
+                            <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' ? (
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "admin", -1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.admin}</span>
+                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.admin}</span>
                                   <button
                                     onClick={() => updateValue(p._id, "admin", 1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
                                     +
                                   </button>
                                 </div>
                               ) : (
-                                <span style={{ fontWeight: "600" }}>{p.admin}</span>
+                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.admin}</span>
                               )}
                             </td>
                             <td style={{
-                              padding: "10px",
+                              padding: "14px",
                               textAlign: "center",
-                              background: p.admin === 0 ? "white" : p.chef < p.admin ? "#fee2e2" : "#d1fae5"
+                              background: p.admin === 0 
+                                ? "transparent" 
+                                : p.chef < p.admin 
+                                ? "rgba(220, 38, 38, 0.15)" 
+                                : "rgba(16, 185, 129, 0.15)",
+                              borderLeft: p.admin > 0 && p.chef < p.admin 
+                                ? "2px solid rgba(220, 38, 38, 0.3)" 
+                                : p.admin > 0 && p.chef >= p.admin 
+                                ? "2px solid rgba(16, 185, 129, 0.3)" 
+                                : "none"
                             }}>
                               {userRole === 'admin' || userRole === 'chef' ? (
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "chef", -1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.chef}</span>
+                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.chef}</span>
                                   <button
                                     onClick={() => updateValue(p._id, "chef", 1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
                                     +
                                   </button>
                                 </div>
                               ) : (
-                                <span style={{ fontWeight: "600" }}>{p.chef}</span>
+                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.chef}</span>
                               )}
                             </td>
-                            <td style={{ padding: "10px", textAlign: "center" }}>
+                            <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' || userRole === 'sales' ? (
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "sales", -1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.sales}</span>
+                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.sales}</span>
                                   <button
                                     onClick={() => updateValue(p._id, "sales", 1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
                                     +
                                   </button>
                                 </div>
                               ) : (
-                                <span style={{ fontWeight: "600" }}>{p.sales}</span>
+                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.sales}</span>
                               )}
                             </td>
-                            <td style={{ padding: "10px", textAlign: "center" }}>
+                            <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' || userRole === 'sales' ? (
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                   <button
                                     onClick={() => updateValue(p._id, "zomato", -1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span style={{ fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{p.zomato}</span>
+                                  <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.zomato}</span>
                                   <button
                                     onClick={() => updateValue(p._id, "zomato", 1)}
                                     style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      border: "1px solid #d1d5db",
-                                      background: "white",
-                                      borderRadius: "4px",
+                                      width: "32px",
+                                      height: "32px",
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      background: "rgba(255,255,255,0.05)",
+                                      borderRadius: "6px",
                                       cursor: "pointer",
-                                      fontSize: "14px",
-                                      color: "#6b7280"
+                                      fontSize: "16px",
+                                      color: "#9ca3af",
+                                      fontWeight: "600"
                                     }}
                                   >
                                     +
                                   </button>
                                 </div>
                               ) : (
-                                <span style={{ fontWeight: "600" }}>{p.zomato}</span>
+                                <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.zomato}</span>
                               )}
                             </td>
                             <td style={{
-                              padding: "10px",
+                              padding: "14px",
                               textAlign: "center",
                               fontWeight: "700",
-                              fontSize: "16px",
-                              color: remaining < 0 ? "#dc2626" : "#059669"
+                              fontSize: "17px",
+                              color: remaining < 0 ? "#ef4444" : "#10b981",
+                              letterSpacing: "-0.5px"
                             }}>
                               {remaining}
                             </td>
                             {userRole === 'admin' && (
-                              <td style={{ padding: "10px", textAlign: "center" }}>
+                              <td style={{ padding: "14px", textAlign: "center" }}>
                                 <button
                                   onClick={() => deleteProduct(p._id)}
                                   style={{
-                                    width: "32px",
-                                    height: "32px",
-                                    background: "#ef4444",
+                                    width: "36px",
+                                    height: "36px",
+                                    background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
                                     color: "white",
                                     border: "none",
-                                    borderRadius: "4px",
+                                    borderRadius: "8px",
                                     cursor: "pointer",
-                                    fontSize: "14px"
+                                    fontSize: "15px",
+                                    fontWeight: "600",
+                                    boxShadow: "0 2px 8px rgba(220,38,38,0.3)",
+                                    transition: "all 0.2s"
                                   }}
                                 >
-                                  ✖
+                                  ✕
                                 </button>
                               </td>
                             )}
                           </tr>
                         );
                       })}
+                    <tr style={{ 
+                      borderTop: "2px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.05)",
+                      fontWeight: "700"
+                    }}>
+                      <td style={{ padding: "14px", fontWeight: "700", color: "#e5e7eb", fontSize: "14px" }}>
+                        TOTAL
+                      </td>
+                      {userRole === 'admin' && <td></td>}
+                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                        {totals.stock}
+                      </td>
+                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                        {totals.admin}
+                      </td>
+                      <td style={{ 
+                        padding: "14px", 
+                        textAlign: "center", 
+                        fontWeight: "700", 
+                        color: "#e5e7eb",
+                        background: totals.admin === 0 
+                          ? "transparent" 
+                          : totals.chef < totals.admin 
+                          ? "rgba(220, 38, 38, 0.3)" 
+                          : "rgba(16, 185, 129, 0.3)"
+                      }}>
+                        {totals.chef}
+                      </td>
+                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                        {totals.sales}
+                      </td>
+                      <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
+                        {totals.zomato}
+                      </td>
+                      <td style={{
+                        padding: "14px",
+                        textAlign: "center",
+                        fontWeight: "700",
+                        fontSize: "17px",
+                        color: totalRemaining < 0 ? "#ef4444" : "#10b981",
+                        letterSpacing: "-0.5px"
+                      }}>
+                        {totalRemaining}
+                      </td>
+                      {userRole === 'admin' && <td></td>}
+                    </tr>
                   </tbody>
                 </table>
               </div>

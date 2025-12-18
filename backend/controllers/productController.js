@@ -1,7 +1,7 @@
 import Product from "../models/productModel.js";
 
 export const getProducts = async (req, res) => {
-  const products = await Product.find({});
+  const products = await Product.find({}).sort({ category: 1, order: 1 });  // SORT BY ORDER
   res.json(products);
 };
 
@@ -11,7 +11,7 @@ export const updateField = async (req, res) => {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
-      { $inc: { [field]: change } },  // ATOMIC UPDATE
+      { $inc: { [field]: change } },
       { new: true }
     );
 
@@ -21,11 +21,9 @@ export const updateField = async (req, res) => {
   }
 };
 
-
-
 export const addProduct = async (req, res) => {
   try {
-    const { name, stock, category } = req.body;
+    const { name, stock, category, price } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Product name is required" });
@@ -33,6 +31,10 @@ export const addProduct = async (req, res) => {
     if (!category) {
       return res.status(400).json({ message: "Category is required" });
     }
+
+    // GET MAX ORDER IN CATEGORY
+    const maxOrderProduct = await Product.findOne({ category }).sort({ order: -1 });
+    const newOrder = maxOrderProduct ? maxOrderProduct.order + 1 : 0;
 
     const newProduct = await Product.create({
       name,
@@ -42,6 +44,8 @@ export const addProduct = async (req, res) => {
       sales: 0,
       zomato: 0,
       category,
+      price: price || 200,
+      order: newOrder
     });
 
     res.json(newProduct);
@@ -50,7 +54,6 @@ export const addProduct = async (req, res) => {
   }
 };
 
-
 export const finishDay = async (req, res) => {
   try {
     const products = await Product.find({});
@@ -58,7 +61,7 @@ export const finishDay = async (req, res) => {
     for (let p of products) {
       const remaining = p.stock + p.chef - p.sales - p.zomato;
 
-      p.stock = remaining;   // final remaining becomes new stock
+      p.stock = remaining;
       p.admin = 0;
       p.chef = 0;
       p.sales = 0;
@@ -105,21 +108,30 @@ export const addMultipleProducts = async (req, res) => {
       .map(r => r.trim())
       .filter(r => r.length > 0);
 
-    const products = rows.map(r => {
-      const [name, stock, category] = r.split(",");
+    const productsToAdd = [];
 
-      return {
+    for (const r of rows) {
+      const [name, stock, category, price] = r.split(",");
+      const cat = category?.trim() || "Uncategorized";
+
+      // GET MAX ORDER FOR THIS CATEGORY
+      const maxOrderProduct = await Product.findOne({ category: cat }).sort({ order: -1 });
+      const newOrder = maxOrderProduct ? maxOrderProduct.order + 1 : 0;
+
+      productsToAdd.push({
         name: name?.trim(),
         stock: Number(stock) || 0,
-        category: category?.trim() || "Uncategorized",
+        category: cat,
+        price: Number(price) || 200,
         admin: 0,
         chef: 0,
         sales: 0,
         zomato: 0,
-      };
-    });
+        order: newOrder
+      });
+    }
 
-    await Product.insertMany(products);
+    await Product.insertMany(productsToAdd);
 
     res.json({ message: "Multiple Products Added!" });
   } catch (error) {
@@ -136,10 +148,8 @@ export const deleteProduct = async (req, res) => {
 
     const category = product.category;
 
-    // product delete
     await Product.findByIdAndDelete(id);
 
-    // agar is category me koi product nahi bacha, return info
     const count = await Product.countDocuments({ category });
 
     res.json({
@@ -171,6 +181,65 @@ export const updateProductName = async (req, res) => {
     }
 
     res.json(updatedProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateProductPrice = async (req, res) => {
+  try {
+    const { id, price } = req.body;
+    
+    if (price === undefined || price < 0) {
+      return res.status(400).json({ message: "Valid price is required" });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id,
+      { price: Number(price) },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json(updatedProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// NEW REORDER FUNCTION
+export const reorderProducts = async (req, res) => {
+  try {
+    const { draggedId, targetId, category } = req.body;
+
+    const draggedProduct = await Product.findById(draggedId);
+    const targetProduct = await Product.findById(targetId);
+
+    if (!draggedProduct || !targetProduct) {
+      return res.status(404).json({ message: "Products not found" });
+    }
+
+    // GET ALL PRODUCTS IN CATEGORY SORTED BY ORDER
+    const categoryProducts = await Product.find({ category }).sort({ order: 1 });
+
+    const draggedIndex = categoryProducts.findIndex(p => p._id.toString() === draggedId);
+    const targetIndex = categoryProducts.findIndex(p => p._id.toString() === targetId);
+
+    // REMOVE DRAGGED ITEM
+    const [removed] = categoryProducts.splice(draggedIndex, 1);
+    
+    // INSERT AT TARGET POSITION
+    categoryProducts.splice(targetIndex, 0, removed);
+
+    // UPDATE ORDER FOR ALL PRODUCTS IN CATEGORY
+    for (let i = 0; i < categoryProducts.length; i++) {
+      await Product.findByIdAndUpdate(categoryProducts[i]._id, { order: i });
+    }
+
+    res.json({ message: "Products reordered successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

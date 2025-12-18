@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -7,7 +7,9 @@ const productSchema = new mongoose.Schema({
   chef: { type: Number, default: 0 },
   sales: { type: Number, default: 0 },
   zomato: { type: Number, default: 0 },
-  category: { type: String, required: true }, // new field
+  category: { type: String, default: "Uncategorized" },
+  price: { type: Number, default: 200 },
+  order: { type: Number, default: 0 }  // NEW FIELD FOR ORDERING
 });
 
-module.exports = mongoose.model("Product", productSchema);
+export default mongoose.model("Product", productSchema);
