@@ -284,32 +284,56 @@ function App() {
   };
 
   const addToCart = (product) => {
-    const remaining = product.stock + product.chef - product.sales - product.zomato;
-    if (remaining <= 0) {
-      alert("Product out of stock!");
-      return;
-    }
+  // Validate product has required fields
+  if (!product._id || !product.name) {
+    console.error("❌ Invalid product:", product);
+    alert("Invalid product data!");
+    return;
+  }
 
-    const existingItem = cart.find(item => item.product._id === product._id);
-    if (existingItem) {
-      setCart(cart.map(item => 
-        item.product._id === product._id
-          ? { ...item, qty: item.qty + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, { product, qty: 1 }]);
-    }
+  const remaining = product.stock + product.chef - product.sales - product.zomato;
+  if (remaining <= 0) {
+    alert("Product out of stock!");
+    return;
+  }
+
+  console.log("➕ Adding to cart:", {
+    id: product._id,
+    name: product.name,
+    price: product.price
+  });
+
+  const existingItem = cart.find(item => item.product._id === product._id);
+  
+  if (existingItem) {
+    setCart(cart.map(item => 
+      item.product._id === product._id
+        ? { ...item, qty: item.qty + 1 }
+        : item
+    ));
+  } else {
+    // Create a clean product object with only needed fields
+    const cartProduct = {
+      _id: product._id,
+      name: product.name,
+      price: product.price || 200,
+      stock: product.stock,
+      chef: product.chef,
+      sales: product.sales,
+      zomato: product.zomato
+    };
     
-    setSearchTerm("");
-    setSelectedIndex(0);
-    showToast("Added to cart!");
-    
-    // Auto focus back to search
-    setTimeout(() => {
-      document.getElementById("salesSearchInput")?.focus();
-    }, 100);
-  };
+    setCart([...cart, { product: cartProduct, qty: 1 }]);
+  }
+  
+  setSearchTerm("");
+  setSelectedIndex(0);
+  showToast("Added to cart!");
+  
+  setTimeout(() => {
+    document.getElementById("salesSearchInput")?.focus();
+  }, 100);
+};
 
   const removeFromCart = (index) => {
     setCart(cart.filter((_, i) => i !== index));
@@ -338,36 +362,79 @@ function App() {
   };
 
   const placeOrder = async (orderType) => {
-    if (cart.length === 0) {
-      alert("Cart is empty!");
-      return;
-    }
+  if (cart.length === 0) {
+    alert("Cart is empty!");
+    return;
+  }
 
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/orders/create`, {
-        items: cart.map(item => ({
-          ...item,
-          orderType
-        }))
+  try {
+    // DEBUG: Log the cart structure
+    console.log("🛒 Full Cart:", JSON.stringify(cart, null, 2));
+    
+    // Validate cart items before mapping
+    const validatedItems = cart.map((item, index) => {
+      console.log(`📦 Item ${index}:`, {
+        hasProduct: !!item.product,
+        productId: item.product?._id,
+        productName: item.product?.name,
+        productPrice: item.product?.price,
+        qty: item.qty
       });
-      
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 1500);
-      
-      setCart([]);
-      loadProducts();
-      loadOrders();
-      showToast("Order placed successfully!");
-      
-      // Auto focus back to search
-      setTimeout(() => {
-        document.getElementById("salesSearchInput")?.focus();
-      }, 1600);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to place order");
+
+      if (!item.product || !item.product._id || !item.product.name) {
+        throw new Error(`Invalid product in cart at index ${index}`);
+      }
+
+      return {
+        productId: item.product._id,
+        productName: item.product.name,
+        qty: item.qty,
+        price: item.product.price || 200,
+        totalPrice: (item.product.price || 200) * item.qty
+      };
+    });
+
+    const orderPayload = {
+      items: validatedItems,
+      orderType
+    };
+
+    console.log("📤 Sending payload:", JSON.stringify(orderPayload, null, 2));
+
+    const response = await axios.post(
+      `${process.env.REACT_APP_API_URL}/api/orders/create`,
+      orderPayload
+    );
+    
+    console.log("✅ Order created:", response.data);
+    
+    // Update product counts based on order type
+    for (const item of cart) {
+      const field = orderType === 'zomato' ? 'zomato' : 'sales';
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, {
+        id: item.product._id,
+        field,
+        change: item.qty
+      });
     }
-  };
+    
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 1500);
+    
+    setCart([]);
+    loadProducts();
+    loadOrders();
+    showToast("Order placed successfully!");
+    
+    setTimeout(() => {
+      document.getElementById("salesSearchInput")?.focus();
+    }, 1600);
+  } catch (err) {
+    console.error("❌ Order Error:", err);
+    console.error("❌ Error Response:", err.response?.data);
+    alert(`Failed to place order: ${err.message}`);
+  }
+};
 
   return (
     <div style={{ 
