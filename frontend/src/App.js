@@ -650,7 +650,7 @@ function App() {
                 }}>
                   {userRole === 'admin' ? 'Admin' : userRole === 'chef' ? 'Chef' : 'Sales'} Mode
                 </span>
-                {(userRole === 'admin' || userRole === 'sales') && (
+                {(userRole === 'sales') && (
                   <button
                     onClick={() => setShowRevenueInBtn(!showRevenueInBtn)}
                     style={{
@@ -1216,7 +1216,91 @@ function App() {
           </>
         )}
 
-        {userRole !== 'chef' && userRole !== 'sales' && (
+        {userRole === 'admin' ? (
+          <div style={{
+            display: "flex",
+            gap: "20px",
+            marginBottom: "40px"
+          }}>
+            {/* CAPITAL Box */}
+            <div style={{
+              flex: 1,
+              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%)",
+              padding: "30px",
+              borderRadius: "16px",
+              textAlign: "center",
+              border: "1px solid rgba(59, 130, 246, 0.2)",
+              boxShadow: "0 8px 32px rgba(59, 130, 246, 0.1)"
+            }}>
+              <div style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                marginBottom: "12px",
+                color: "#93c5fd",
+                letterSpacing: "1.5px",
+                textTransform: "uppercase"
+              }}>
+                Capital
+              </div>
+              <div style={{
+                fontSize: "48px",
+                fontWeight: "800",
+                color: "#3b82f6",
+                letterSpacing: "-1px"
+              }}>
+                ₹{products.reduce((total, p) => total + ((p.price || 200) * p.stock), 0).toFixed(2)}
+              </div>
+              <div style={{
+                fontSize: "12px",
+                fontWeight: "500",
+                color: "#93c5fd",
+                marginTop: "8px",
+                letterSpacing: "0.5px"
+              }}>
+                Total Stock Value
+              </div>
+            </div>
+
+            {/* TOTAL REVENUE Box */}
+            <div style={{
+              flex: 1,
+              background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
+              padding: "30px",
+              borderRadius: "16px",
+              textAlign: "center",
+              border: "1px solid rgba(16, 185, 129, 0.2)",
+              boxShadow: "0 8px 32px rgba(16, 185, 129, 0.1)"
+            }}>
+              <div style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                marginBottom: "12px",
+                color: "#6ee7b7",
+                letterSpacing: "1.5px",
+                textTransform: "uppercase"
+              }}>
+                Total Revenue
+              </div>
+              <div style={{
+                fontSize: "48px",
+                fontWeight: "800",
+                color: "#10b981",
+                letterSpacing: "-1px"
+              }}>
+                ₹{calculateTotalRevenue().toFixed(2)}
+              </div>
+              <div style={{
+                fontSize: "12px",
+                fontWeight: "500",
+                color: "#6ee7b7",
+                marginTop: "8px",
+                letterSpacing: "0.5px"
+              }}>
+                Sales + Zomato Combined
+              </div>
+            </div>
+          </div>
+        ) : userRole !== 'chef' && userRole !== 'sales' && (
           <div style={{
             background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
             padding: "30px",
