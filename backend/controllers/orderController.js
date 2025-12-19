@@ -78,3 +78,13 @@ export const deleteOrder = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ✅ NEW: Delete all orders endpoint
+export const deleteAllOrders = async (req, res) => {
+  try {
+    await Order.deleteMany({});
+    res.json({ message: "All orders deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
