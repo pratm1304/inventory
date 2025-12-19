@@ -12,6 +12,7 @@ const orderSchema = new mongoose.Schema(
   {
     items: [orderItemSchema],
     orderType: { type: String, enum: ["foushack", "zomato"], required: true },
+    paymentMethod: { type: String, enum: ["cash", "upi"], required: false },
     totalPrice: { type: Number, required: true }
   },
   { timestamps: true }

@@ -29,6 +29,8 @@ function App() {
   const [showRevenueInBtn, setShowRevenueInBtn] = useState(false);
   const [selectedOrderType, setSelectedOrderType] = useState('foushack');
   const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -392,12 +394,30 @@ function App() {
     const filtered = getFilteredProducts();
 
     if (cart.length > 0 && !searchTerm.trim()) {
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        e.preventDefault();
-        setSelectedOrderType(prev => prev === 'foushack' ? 'zomato' : 'foushack');
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        placeOrder(selectedOrderType);
+      if (showPaymentOptions) {
+        // Navigate between payment methods
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          setSelectedPaymentMethod(prev => prev === 'cash' ? 'upi' : 'cash');
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          placeOrder(selectedOrderType, selectedPaymentMethod);
+          setShowPaymentOptions(false);
+          setSelectedPaymentMethod('cash');
+        }
+      } else {
+        // Navigate between order types
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          setSelectedOrderType(prev => prev === 'foushack' ? 'zomato' : 'foushack');
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (selectedOrderType === 'foushack') {
+            setShowPaymentOptions(true);
+          } else {
+            placeOrder(selectedOrderType);
+          }
+        }
       }
       return;
     }
@@ -418,7 +438,7 @@ function App() {
     }
   };
 
-  const placeOrder = async (orderType) => {
+  const placeOrder = async (orderType, paymentMethod = null) => {
     if (cart.length === 0) {
       showToast("Cart is empty!", "error");
       return;
@@ -463,7 +483,8 @@ function App() {
 
       const orderPayload = {
         items: validatedItems,
-        orderType
+        orderType,
+        ...(paymentMethod && { paymentMethod })
       };
 
       console.log("📤 Sending payload:", JSON.stringify(orderPayload, null, 2));
@@ -480,6 +501,8 @@ function App() {
 
       setCart([]);
       setSelectedOrderType('foushack');
+      setShowPaymentOptions(false);
+      setSelectedPaymentMethod('cash');
       loadProducts();
       loadOrders();
 
@@ -811,6 +834,7 @@ function App() {
                     <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Product</th>
                     <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Qty</th>
                     <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Type</th>
+                    <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Cash/UPI</th>  {/* ✅ NEW COLUMN */}
                     <th style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Total</th>
                     <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Delete</th>
                   </tr>
@@ -832,6 +856,16 @@ function App() {
                         <span style={{ fontSize: "20px" }}>
                           {order.orderType === 'zomato' ? '🛵' : '🏪'}
                         </span>
+                      </td>
+                      {/* ✅ NEW CELL - Cash/UPI Column */}
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        {order.orderType === 'foushack' && order.paymentMethod ? (
+                          <span style={{ fontSize: "20px" }}>
+                            {order.paymentMethod === 'cash' ? '💵' : '📱'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "14px", color: "#6b7280" }}>-</span>
+                        )}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#10b981" }}>
                         ₹{order.totalPrice}
@@ -1077,91 +1111,155 @@ function App() {
                   ))}
                 </div>
 
-                <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
-                  <div
-                    onClick={() => placeOrder("zomato")}
-                    style={{
-                      flex: 1,
-                      padding: "40px",
-                      borderRadius: "16px",
-                      border: selectedOrderType === 'zomato'
-                        ? "3px solid rgba(239, 68, 68, 0.8)"
-                        : "2px solid rgba(239, 68, 68, 0.3)",
-                      background: selectedOrderType === 'zomato'
-                        ? "linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%)"
-                        : "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      transition: "all 0.3s",
-                      boxShadow: selectedOrderType === 'zomato'
-                        ? "0 8px 32px rgba(239, 68, 68, 0.5)"
-                        : "0 4px 20px rgba(239, 68, 68, 0.2)",
-                      transform: selectedOrderType === 'zomato' ? "scale(1.02)" : "scale(1)"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedOrderType !== 'zomato') {
-                        e.currentTarget.style.transform = "scale(1.05)";
-                        e.currentTarget.style.boxShadow = "0 8px 32px rgba(239, 68, 68, 0.4)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedOrderType !== 'zomato') {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(239, 68, 68, 0.2)";
-                      }
-                    }}
-                  >
-                    <div style={{ fontSize: "60px", marginBottom: "16px" }}>🛵</div>
-                    <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444", marginBottom: "8px" }}>
-                      Zomato Order
+                {!showPaymentOptions ? (
+                  <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
+                    <div
+                      onClick={() => placeOrder("zomato")}
+                      style={{
+                        flex: 1,
+                        padding: "40px",
+                        borderRadius: "16px",
+                        border: selectedOrderType === 'zomato'
+                          ? "3px solid rgba(239, 68, 68, 0.8)"
+                          : "2px solid rgba(239, 68, 68, 0.3)",
+                        background: selectedOrderType === 'zomato'
+                          ? "linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%)"
+                          : "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.3s",
+                        boxShadow: selectedOrderType === 'zomato'
+                          ? "0 8px 32px rgba(239, 68, 68, 0.5)"
+                          : "0 4px 20px rgba(239, 68, 68, 0.2)",
+                        transform: selectedOrderType === 'zomato' ? "scale(1.02)" : "scale(1)"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedOrderType !== 'zomato') {
+                          e.currentTarget.style.transform = "scale(1.05)";
+                          e.currentTarget.style.boxShadow = "0 8px 32px rgba(239, 68, 68, 0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedOrderType !== 'zomato') {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow = "0 4px 20px rgba(239, 68, 68, 0.2)";
+                        }
+                      }}
+                    >
+                      <div style={{ fontSize: "60px", marginBottom: "16px" }}>🛵</div>
+                      <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444", marginBottom: "8px" }}>
+                        Zomato Order
+                      </div>
+                      <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                        ₹{getCartTotal()}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "16px", color: "#9ca3af" }}>
-                      ₹{getCartTotal()}
-                    </div>
-                  </div>
 
-                  <div
-                    onClick={() => placeOrder("foushack")}
-                    style={{
-                      flex: 1,
-                      padding: "40px",
-                      borderRadius: "16px",
-                      border: selectedOrderType === 'foushack'
-                        ? "3px solid rgba(16, 185, 129, 0.8)"
-                        : "2px solid rgba(16, 185, 129, 0.3)",
-                      background: selectedOrderType === 'foushack'
-                        ? "linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)"
-                        : "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      transition: "all 0.3s",
-                      boxShadow: selectedOrderType === 'foushack'
-                        ? "0 8px 32px rgba(16, 185, 129, 0.5)"
-                        : "0 4px 20px rgba(16, 185, 129, 0.2)",
-                      transform: selectedOrderType === 'foushack' ? "scale(1.02)" : "scale(1)"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedOrderType !== 'foushack') {
-                        e.currentTarget.style.transform = "scale(1.05)";
-                        e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.4)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedOrderType !== 'foushack') {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(16, 185, 129, 0.2)";
-                      }
-                    }}
-                  >
-                    <div style={{ fontSize: "60px", marginBottom: "16px" }}>🏪</div>
-                    <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981", marginBottom: "8px" }}>
-                      FouShack Order
-                    </div>
-                    <div style={{ fontSize: "16px", color: "#9ca3af" }}>
-                      ₹{getCartTotal()}
+                    <div
+                      onClick={() => setShowPaymentOptions(true)}
+                      style={{
+                        flex: 1,
+                        padding: "40px",
+                        borderRadius: "16px",
+                        border: selectedOrderType === 'foushack'
+                          ? "3px solid rgba(16, 185, 129, 0.8)"
+                          : "2px solid rgba(16, 185, 129, 0.3)",
+                        background: selectedOrderType === 'foushack'
+                          ? "linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)"
+                          : "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.3s",
+                        boxShadow: selectedOrderType === 'foushack'
+                          ? "0 8px 32px rgba(16, 185, 129, 0.5)"
+                          : "0 4px 20px rgba(16, 185, 129, 0.2)",
+                        transform: selectedOrderType === 'foushack' ? "scale(1.02)" : "scale(1)"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedOrderType !== 'foushack') {
+                          e.currentTarget.style.transform = "scale(1.05)";
+                          e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedOrderType !== 'foushack') {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow = "0 4px 20px rgba(16, 185, 129, 0.2)";
+                        }
+                      }}
+                    >
+                      <div style={{ fontSize: "60px", marginBottom: "16px" }}>🏪</div>
+                      <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981", marginBottom: "8px" }}>
+                        FouShack Order
+                      </div>
+                      <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                        ₹{getCartTotal()}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
+                    <div
+                      onClick={() => placeOrder("foushack", "cash")}
+                      style={{
+                        flex: 1,
+                        padding: "40px",
+                        borderRadius: "16px",
+                        border: selectedPaymentMethod === 'cash'
+                          ? "3px solid rgba(59, 130, 246, 0.8)"
+                          : "2px solid rgba(59, 130, 246, 0.3)",
+                        background: selectedPaymentMethod === 'cash'
+                          ? "linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.25) 100%)"
+                          : "linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.3s",
+                        boxShadow: selectedPaymentMethod === 'cash'
+                          ? "0 8px 32px rgba(59, 130, 246, 0.5)"
+                          : "0 4px 20px rgba(59, 130, 246, 0.2)",
+                        transform: selectedPaymentMethod === 'cash' ? "scale(1.02)" : "scale(1)"
+                      }}
+                    >
+                      <div style={{ fontSize: "60px", marginBottom: "16px" }}>💵</div>
+                      <div style={{ fontSize: "24px", fontWeight: "700", color: "#3b82f6", marginBottom: "8px" }}>
+                        Cash Payment
+                      </div>
+                      <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                        ₹{getCartTotal()}
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => placeOrder("foushack", "upi")}
+                      style={{
+                        flex: 1,
+                        padding: "40px",
+                        borderRadius: "16px",
+                        border: selectedPaymentMethod === 'upi'
+                          ? "3px solid rgba(139, 92, 246, 0.8)"
+                          : "2px solid rgba(139, 92, 246, 0.3)",
+                        background: selectedPaymentMethod === 'upi'
+                          ? "linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(124, 58, 237, 0.25) 100%)"
+                          : "linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%)",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.3s",
+                        boxShadow: selectedPaymentMethod === 'upi'
+                          ? "0 8px 32px rgba(139, 92, 246, 0.5)"
+                          : "0 4px 20px rgba(139, 92, 246, 0.2)",
+                        transform: selectedPaymentMethod === 'upi' ? "scale(1.02)" : "scale(1)"
+                      }}
+                    >
+                      <div style={{ fontSize: "60px", marginBottom: "16px" }}>📱</div>
+                      <div style={{ fontSize: "24px", fontWeight: "700", color: "#8b5cf6", marginBottom: "8px" }}>
+                        UPI Payment
+                      </div>
+                      <div style={{ fontSize: "16px", color: "#9ca3af" }}>
+                        ₹{getCartTotal()}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -1183,6 +1281,7 @@ function App() {
                       <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Product</th>
                       <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Qty</th>
                       <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Type</th>
+                      <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Cash/UPI</th>  {/* ✅ NEW COLUMN */}
                       <th style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Total</th>
                     </tr>
                   </thead>
@@ -1203,6 +1302,16 @@ function App() {
                           <span style={{ fontSize: "20px" }}>
                             {order.orderType === 'zomato' ? '🛵' : '🏪'}
                           </span>
+                        </td>
+                        {/* ✅ NEW CELL - Cash/UPI Column */}
+                        <td style={{ padding: "12px", textAlign: "center" }}>
+                          {order.orderType === 'foushack' && order.paymentMethod ? (
+                            <span style={{ fontSize: "20px" }}>
+                              {order.paymentMethod === 'cash' ? '💵' : '📱'}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "14px", color: "#6b7280" }}>-</span>
+                          )}
                         </td>
                         <td style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#10b981" }}>
                           ₹{order.totalPrice}
