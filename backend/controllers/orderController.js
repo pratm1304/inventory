@@ -26,7 +26,7 @@ export const createOrder = async (req, res) => {
   try {
     console.log("📥 Received:", JSON.stringify(req.body, null, 2));
 
-    const { items, orderType } = req.body;
+    const { items, orderType, paymentMethod } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Invalid order items" });
@@ -39,6 +39,7 @@ export const createOrder = async (req, res) => {
     const newOrder = await Order.create({
       items: items,
       orderType: orderType,
+      paymentMethod: paymentMethod,
       totalPrice: totalOrderPrice
     });
 
