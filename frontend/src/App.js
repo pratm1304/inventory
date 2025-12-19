@@ -31,7 +31,16 @@ function App() {
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
-
+  const [paymentFilter, setPaymentFilter] = useState(null);
+  const [showAccounts, setShowAccounts] = useState(false);
+const [denominations, setDenominations] = useState({
+  d500: '',
+  d200: '',
+  d100: '',
+  d50: '',
+  d20: '',
+  d10: ''
+});
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
@@ -100,6 +109,51 @@ function App() {
       return total + ((p.sales + p.zomato) * (p.price || 200));
     }, 0);
   };
+
+  const calculatePaymentTotal = (method) => {
+  return orders
+    .filter(order => order.paymentMethod === method)
+    .reduce((total, order) => total + order.totalPrice, 0);
+};
+
+const getFilteredOrders = () => {
+  if (!paymentFilter) return orders;
+  return orders.filter(order => order.paymentMethod === paymentFilter);
+};
+
+const calculateCashCounterTotal = () => {
+  return (
+    (parseInt(denominations.d500) || 0) * 500 +
+    (parseInt(denominations.d200) || 0) * 200 +
+    (parseInt(denominations.d100) || 0) * 100 +
+    (parseInt(denominations.d50) || 0) * 50 +
+    (parseInt(denominations.d20) || 0) * 20 +
+    (parseInt(denominations.d10) || 0) * 10
+  );
+};
+
+const copyDenominations = () => {
+  const text = `500 X ${denominations.d500 || 0}
+200 X ${denominations.d200 || 0}
+100 X ${denominations.d100 || 0}
+50 X ${denominations.d50 || 0}
+20 X ${denominations.d20 || 0}
+10 X ${denominations.d10 || 0}
+
+Total Cash Counter = ₹${calculateCashCounterTotal()}`;
+  
+  navigator.clipboard.writeText(text);
+  showToast("Copied to clipboard!", "success");
+};
+
+const handleDenominationKeyDown = (e, currentField, nextField) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (nextField) {
+      document.getElementById(nextField)?.focus();
+    }
+  }
+};
 
   const updateValue = async (id, field, change) => {
     setProducts(prev =>
@@ -674,30 +728,61 @@ function App() {
                   {userRole === 'admin' ? 'Admin' : userRole === 'chef' ? 'Chef' : 'Sales'} Mode
                 </span>
                 {(userRole === 'sales') && (
-                  <button
-                    onClick={() => setShowRevenueInBtn(!showRevenueInBtn)}
-                    style={{
-                      padding: "10px 24px",
-                      background: showRevenueInBtn
-                        ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                        : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      letterSpacing: "0.3px",
-                      boxShadow: showRevenueInBtn
-                        ? "0 4px 12px rgba(16,185,129,0.3)"
-                        : "0 4px 12px rgba(139,92,246,0.3)",
-                      transition: "all 0.2s",
-                      minWidth: showRevenueInBtn ? "200px" : "auto"
-                    }}
-                  >
-                    {showRevenueInBtn ? `₹${calculateTotalRevenue().toFixed(2)}` : "See Total Revenue"}
-                  </button>
-                )}
+  <button
+    onClick={() => {
+      setShowAccounts(!showAccounts);
+      if (!showAccounts) {
+        setTimeout(() => document.getElementById('d500')?.focus(), 100);
+      }
+    }}
+    style={{
+      padding: "10px 24px",
+      background: showAccounts
+        ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+        : "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontSize: "13px",
+      fontWeight: "600",
+      letterSpacing: "0.3px",
+      boxShadow: showAccounts
+        ? "0 4px 12px rgba(16,185,129,0.3)"
+        : "0 4px 12px rgba(99,102,241,0.3)",
+      transition: "all 0.2s"
+    }}
+  >
+    {showAccounts ? "Hide Accounts" : "Accounts"}
+  </button>
+)}
+
+{(userRole === 'sales') && (
+  <button
+    onClick={() => setShowRevenueInBtn(!showRevenueInBtn)}
+    style={{
+      padding: "10px 24px",
+      background: showRevenueInBtn
+        ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+        : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontSize: "13px",
+      fontWeight: "600",
+      letterSpacing: "0.3px",
+      boxShadow: showRevenueInBtn
+        ? "0 4px 12px rgba(16,185,129,0.3)"
+        : "0 4px 12px rgba(139,92,246,0.3)",
+      transition: "all 0.2s",
+      minWidth: showRevenueInBtn ? "200px" : "auto"
+    }}
+  >
+    {showRevenueInBtn ? `₹${calculateTotalRevenue().toFixed(2)}` : "See Total Revenue"}
+  </button>
+)}
+
                 {userRole === 'admin' && (
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
@@ -803,28 +888,70 @@ function App() {
             marginBottom: "30px",
             border: "1px solid rgba(255,255,255,0.08)"
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
-                All Order History
-              </h3>
-              <button
-                onClick={deleteAllOrders}
-                style={{
-                  padding: "8px 16px",
-                  background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  letterSpacing: "0.3px",
-                  boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
-                }}
-              >
-                Delete All Records
-              </button>
-            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+  <h3 style={{ margin: 0, color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
+    {paymentFilter === 'cash' ? 'Cash Orders' : paymentFilter === 'upi' ? 'UPI Orders' : 'All Order History'}
+  </h3>
+  <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+    <button
+      onClick={() => setPaymentFilter(paymentFilter === 'cash' ? null : 'cash')}
+      style={{
+        padding: "8px 16px",
+        background: paymentFilter === 'cash' ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "rgba(59, 130, 246, 0.2)",
+        color: paymentFilter === 'cash' ? "white" : "#3b82f6",
+        border: paymentFilter === 'cash' ? "none" : "1px solid rgba(59, 130, 246, 0.3)",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "12px",
+        fontWeight: "600"
+      }}
+    >
+      💵 Only Cash
+    </button>
+    {paymentFilter === 'cash' && (
+      <span style={{ padding: "8px 12px", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+        Total: ₹{calculatePaymentTotal('cash')}
+      </span>
+    )}
+    <button
+      onClick={() => setPaymentFilter(paymentFilter === 'upi' ? null : 'upi')}
+      style={{
+        padding: "8px 16px",
+        background: paymentFilter === 'upi' ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "rgba(139, 92, 246, 0.2)",
+        color: paymentFilter === 'upi' ? "white" : "#8b5cf6",
+        border: paymentFilter === 'upi' ? "none" : "1px solid rgba(139, 92, 246, 0.3)",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "12px",
+        fontWeight: "600"
+      }}
+    >
+      📱 Only UPI
+    </button>
+    {paymentFilter === 'upi' && (
+      <span style={{ padding: "8px 12px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+        Total: ₹{calculatePaymentTotal('upi')}
+      </span>
+    )}
+    <button
+      onClick={deleteAllOrders}
+      style={{
+        padding: "8px 16px",
+        background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "12px",
+        fontWeight: "600",
+        letterSpacing: "0.3px",
+        boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
+      }}
+    >
+      Delete All Records
+    </button>
+  </div>
+</div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
@@ -840,10 +967,9 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order, index) => (
+                  {getFilteredOrders().map((order, index) => (
                     <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                      <td style={{ padding: "12px", color: "#e5e7eb" }}>{orders.length - index}</td>
-                      <td style={{ padding: "12px", color: "#e5e7eb" }}>
+<td style={{ padding: "12px", color: "#e5e7eb" }}>{getFilteredOrders().length - index}</td>                      <td style={{ padding: "12px", color: "#e5e7eb" }}>
                         {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td style={{ padding: "12px", color: "#e5e7eb" }}>
@@ -899,6 +1025,106 @@ function App() {
 
         {userRole === 'sales' && (
           <>
+          {showAccounts && (
+  <div style={{
+    background: "rgba(30, 30, 45, 0.95)",
+    padding: "28px",
+    borderRadius: "16px",
+    marginBottom: "30px",
+    border: "1px solid rgba(99, 102, 241, 0.3)",
+    boxShadow: "0 8px 32px rgba(99, 102, 241, 0.2)"
+  }}>
+    <h3 style={{ margin: "0 0 20px 0", color: "#e5e7eb", fontSize: "18px", fontWeight: "600" }}>
+      💰 Cash Counter
+    </h3>
+    
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxWidth: "300px" }}>
+      {[
+        { label: '500', field: 'd500', next: 'd200' },
+        { label: '200', field: 'd200', next: 'd100' },
+        { label: '100', field: 'd100', next: 'd50' },
+        { label: '50', field: 'd50', next: 'd20' },
+        { label: '20', field: 'd20', next: 'd10' },
+        { label: '10', field: 'd10', next: null }
+      ].map(({ label, field, next }) => (
+        <div key={field} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ 
+            color: "#10b981", 
+            fontSize: "18px", 
+            fontWeight: "700", 
+            minWidth: "50px" 
+          }}>
+            ₹{label}
+          </span>
+          <span style={{ color: "#9ca3af", fontSize: "16px" }}>×</span>
+          <input
+            id={field}
+            type="number"
+            value={denominations[field]}
+            onChange={(e) => setDenominations({ ...denominations, [field]: e.target.value })}
+            onKeyDown={(e) => handleDenominationKeyDown(e, field, next)}
+            placeholder="0"
+            style={{
+              padding: "10px 14px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              fontSize: "16px",
+              width: "80px",
+              background: "rgba(255,255,255,0.05)",
+              color: "#e5e7eb",
+              textAlign: "center"
+            }}
+          />
+          <span style={{ color: "#6b7280", fontSize: "14px", minWidth: "80px" }}>
+            = ₹{(parseInt(denominations[field]) || 0) * parseInt(label)}
+          </span>
+        </div>
+      ))}
+    </div>
+
+    {/* Total Box */}
+    <div style={{
+      marginTop: "24px",
+      padding: "20px",
+      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
+      borderRadius: "12px",
+      border: "1px solid rgba(16, 185, 129, 0.3)",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }}>
+      <div>
+        <div style={{ color: "#6ee7b7", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>
+          TOTAL CASH COUNTER
+        </div>
+        <div style={{ color: "#10b981", fontSize: "32px", fontWeight: "800" }}>
+          ₹{calculateCashCounterTotal()}
+        </div>
+      </div>
+      
+      {/* Copy Button */}
+      <button
+        onClick={copyDenominations}
+        style={{
+          padding: "12px 20px",
+          background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          cursor: "pointer",
+          fontSize: "14px",
+          fontWeight: "600",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          boxShadow: "0 4px 12px rgba(139,92,246,0.3)"
+        }}
+      >
+        📋 Copy
+      </button>
+    </div>
+  </div>
+)}
             <div style={{ display: "flex", gap: "16px", marginBottom: "30px", alignItems: "flex-start" }}>
               <div style={{ flex: 1, position: "relative" }}>
                 <input
