@@ -1,9 +1,10 @@
 import express from "express";
-import { getOrders, createOrder } from "../controllers/orderController.js";
+import { getOrders, createOrder, deleteOrder } from "../controllers/orderController.js";
 
 const router = express.Router();
 
 router.get("/", getOrders);
-router.post("/create", createOrder);  // This line is already correct
+router.post("/create", createOrder);
+router.delete("/:id", deleteOrder); // ✅ NEW DELETE ROUTE
 
 export default router;

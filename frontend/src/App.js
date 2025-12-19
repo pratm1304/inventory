@@ -25,14 +25,37 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showRevenueInBtn, setShowRevenueInBtn] = useState(false);
-  const [selectedOrderType, setSelectedOrderType] = useState('foushack'); // NEW: default foushack
+  const [selectedOrderType, setSelectedOrderType] = useState('foushack');
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  };
+
+  // ✅ FIXED: Working success sound
+  const playSuccessSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.log('Audio error:', error);
+    }
   };
 
   useEffect(() => {
@@ -146,6 +169,18 @@ function App() {
     } catch (err) {
       console.error(err);
       alert("Failed to delete category");
+    }
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm("Are you sure you want to delete this order?")) return;
+    try {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/orders/${orderId}`);
+      loadOrders();
+      showToast("Order deleted successfully!", "error");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete order");
     }
   };
 
@@ -263,9 +298,9 @@ function App() {
 
   const handleLogin = (role) => {
     const pins = {
-      admin: "1234",
-      chef: "5678",
-      sales: "9012"
+      admin: "1BILLION",
+      chef: "KERALA",
+      sales: "1234"
     };
     const pin = prompt(`Enter ${role.toUpperCase()} PIN`);
     if (pin === pins[role]) {
@@ -276,7 +311,6 @@ function App() {
     }
   };
 
-  // Sales functions
   const getFilteredProducts = () => {
     if (!searchTerm.trim()) return [];
     return products.filter(p => 
@@ -287,13 +321,13 @@ function App() {
   const addToCart = (product) => {
     if (!product._id || !product.name) {
       console.error("❌ Invalid product:", product);
-      alert("Invalid product data!");
+      showToast("Invalid product data!", "error");
       return;
     }
 
     const remaining = product.stock + product.chef - product.sales - product.zomato;
     if (remaining <= 0) {
-      alert("Product out of stock!");
+      showToast("Product out of stock!", "error");
       return;
     }
 
@@ -345,7 +379,6 @@ function App() {
   const handleSearchKeyDown = (e) => {
     const filtered = getFilteredProducts();
     
-    // NEW: If cart has items and search is empty, navigate between order type boxes
     if (cart.length > 0 && !searchTerm.trim()) {
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
@@ -357,7 +390,6 @@ function App() {
       return;
     }
 
-    // Original search navigation logic
     if (filtered.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -376,8 +408,20 @@ function App() {
 
   const placeOrder = async (orderType) => {
     if (cart.length === 0) {
-      alert("Cart is empty!");
+      showToast("Cart is empty!", "error");
       return;
+    }
+
+    // ✅ NEW: Validate stock before placing order
+    for (const item of cart) {
+      const currentProduct = products.find(p => p._id === item.product._id);
+      if (currentProduct) {
+        const remaining = currentProduct.stock + currentProduct.chef - currentProduct.sales - currentProduct.zomato;
+        if (item.qty > remaining) {
+          showToast(`No stock available for ${item.product.name}!`, "error");
+          return;
+        }
+      }
     }
 
     try {
@@ -419,33 +463,33 @@ function App() {
       
       console.log("✅ Order created:", response.data);
       
-      for (const item of cart) {
-        const field = orderType === 'zomato' ? 'zomato' : 'sales';
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, {
-          id: item.product._id,
-          field,
-          change: item.qty
-        });
-      }
-      
-      // UPDATED: Faster success animation (0.8s instead of 1.5s)
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 800);
+      showToast("DONE", "success");
+      playSuccessSound();
       
       setCart([]);
-      setSelectedOrderType('foushack'); // Reset to default
+      setSelectedOrderType('foushack');
       loadProducts();
       loadOrders();
-      showToast("Order placed successfully!");
       
       setTimeout(() => {
         document.getElementById("salesSearchInput")?.focus();
-      }, 900);
+      }, 100);
     } catch (err) {
       console.error("❌ Order Error:", err);
       console.error("❌ Error Response:", err.response?.data);
-      alert(`Failed to place order: ${err.message}`);
+      showToast(`Failed to place order: ${err.message}`, "error");
     }
+  };
+
+  const getTodayOrders = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return orders.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      orderDate.setHours(0, 0, 0, 0);
+      return orderDate.getTime() === today.getTime();
+    });
   };
 
   return (
@@ -477,43 +521,10 @@ function App() {
         </div>
       )}
 
-      {/* UPDATED: Green background and faster animation */}
-      {showSuccess && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-          zIndex: 9999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          animation: "fadeIn 0.2s ease-out"
-        }}>
-          <div style={{
-            fontSize: "80px",
-            animation: "sparkle 0.8s ease-out"
-          }}>
-            ✨🎉✨
-          </div>
-        </div>
-      )}
-
       <style>{`
         @keyframes slideIn {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes sparkle {
-          0% { transform: scale(0) rotate(0deg); opacity: 0; }
-          50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
-          100% { transform: scale(1) rotate(360deg); opacity: 0; }
         }
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
       `}</style>
@@ -652,6 +663,30 @@ function App() {
                     {showRevenueInBtn ? `₹${calculateTotalRevenue().toFixed(2)}` : "See Total Revenue"}
                   </button>
                 )}
+                {userRole === 'admin' && (
+                  <button
+                    onClick={() => setShowOrderHistory(!showOrderHistory)}
+                    style={{
+                      padding: "10px 24px",
+                      background: showOrderHistory
+                        ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                        : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      letterSpacing: "0.3px",
+                      boxShadow: showOrderHistory
+                        ? "0 4px 12px rgba(16,185,129,0.3)"
+                        : "0 4px 12px rgba(245,158,11,0.3)",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {showOrderHistory ? "Hide Order History" : "Order History"}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setUserRole(null);
@@ -724,6 +759,78 @@ function App() {
             )}
           </div>
         </div>
+
+        {userRole === 'admin' && showOrderHistory && (
+          <div style={{
+            background: "rgba(30, 30, 45, 0.6)",
+            padding: "24px",
+            borderRadius: "16px",
+            marginBottom: "30px",
+            border: "1px solid rgba(255,255,255,0.08)"
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
+              All Order History
+            </h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Sr No.</th>
+                    <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Date & Time</th>
+                    <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Product</th>
+                    <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Qty</th>
+                    <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Type</th>
+                    <th style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Total</th>
+                    <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order, index) => (
+                    <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "12px", color: "#e5e7eb" }}>{orders.length - index}</td>
+                      <td style={{ padding: "12px", color: "#e5e7eb" }}>
+                        {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ padding: "12px", color: "#e5e7eb" }}>
+                        {order.items.map(item => `${item.productName} (${item.qty})`).join(', ')}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center", color: "#e5e7eb" }}>
+                        {order.items.reduce((sum, item) => sum + item.qty, 0)}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        <span style={{ fontSize: "20px" }}>
+                          {order.orderType === 'zomato' ? '🛵' : '🏪'}
+                        </span>
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "right", fontWeight: "600", color: "#10b981" }}>
+                        ₹{order.totalPrice}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        <button
+                          onClick={() => deleteOrder(order._id)}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            boxShadow: "0 2px 8px rgba(220,38,38,0.3)"
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {userRole === 'sales' && (
           <>
@@ -892,9 +999,18 @@ function App() {
                         </button>
                         <button
                           onClick={() => {
-                            setCart(cart.map((cartItem, i) => 
-                              i === index ? { ...cartItem, qty: cartItem.qty + 1 } : cartItem
-                            ));
+                            // ✅ FIXED: Check stock before incrementing
+                            const currentProduct = products.find(p => p._id === item.product._id);
+                            if (currentProduct) {
+                              const remaining = currentProduct.stock + currentProduct.chef - currentProduct.sales - currentProduct.zomato;
+                              if (item.qty < remaining) {
+                                setCart(cart.map((cartItem, i) => 
+                                  i === index ? { ...cartItem, qty: cartItem.qty + 1 } : cartItem
+                                ));
+                              } else {
+                                showToast("No stock available!", "error");
+                              }
+                            }
                           }}
                           style={{
                             width: "32px",
@@ -930,7 +1046,6 @@ function App() {
                   ))}
                 </div>
 
-                {/* UPDATED: Added visual selection indicator */}
                 <div style={{ display: "flex", gap: "16px", marginBottom: "30px" }}>
                   <div
                     onClick={() => placeOrder("zomato")}
@@ -1026,14 +1141,14 @@ function App() {
               border: "1px solid rgba(255,255,255,0.08)"
             }}>
               <h3 style={{ margin: "0 0 16px 0", color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
-                Recent Orders
+                Today's Orders
               </h3>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
                     <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                       <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Sr No.</th>
-                      <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Time</th>
+                      <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Date & Time</th>
                       <th style={{ padding: "12px", textAlign: "left", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Product</th>
                       <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Qty</th>
                       <th style={{ padding: "12px", textAlign: "center", fontWeight: "600", color: "#9ca3af", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>Type</th>
@@ -1041,11 +1156,11 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((order, index) => (
+                    {getTodayOrders().map((order, index) => (
                       <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                        <td style={{ padding: "12px", color: "#e5e7eb" }}>{orders.length - index}</td>
+                        <td style={{ padding: "12px", color: "#e5e7eb" }}>{getTodayOrders().length - index}</td>
                         <td style={{ padding: "12px", color: "#e5e7eb" }}>
-                          {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td style={{ padding: "12px", color: "#e5e7eb" }}>
                           {order.items.map(item => `${item.productName} (${item.qty})`).join(', ')}
@@ -1911,7 +2026,7 @@ function App() {
                             )}
                             {userRole !== 'chef' && (
                               <td style={{ padding: "14px", textAlign: "center" }}>
-                                {userRole === 'admin' || userRole === 'sales' ? (
+                                {userRole === 'admin' ? (
                                   <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                     <button
                                       onClick={() => updateValue(p._id, "sales", -1)}
@@ -1954,7 +2069,7 @@ function App() {
                             )}
                             {userRole !== 'chef' && (
                               <td style={{ padding: "14px", textAlign: "center" }}>
-                                {userRole === 'admin' || userRole === 'sales' ? (
+                                {userRole === 'admin' ? (
                                   <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
                                     <button
                                       onClick={() => updateValue(p._id, "zomato", -1)}

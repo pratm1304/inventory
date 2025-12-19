@@ -1,4 +1,5 @@
 import Category from "../models/categoryModel.js";
+import Product from "../models/productModel.js"; // ✅ ADDED THIS IMPORT
 
 export const getCategories = async (req, res) => {
   try {
@@ -22,13 +23,9 @@ export const reorderCategories = async (req, res) => {
       return res.status(404).json({ message: "Categories not found" });
     }
 
-    // REMOVE DRAGGED ITEM
     const [removed] = allCategories.splice(draggedIndex, 1);
-    
-    // INSERT AT TARGET POSITION
     allCategories.splice(targetIndex, 0, removed);
 
-    // UPDATE ORDER FOR ALL CATEGORIES
     for (let i = 0; i < allCategories.length; i++) {
       await Category.findByIdAndUpdate(allCategories[i]._id, { order: i });
     }
@@ -63,10 +60,7 @@ export const deleteCategory = async (req, res) => {
   try {
     const { name } = req.params;
 
-    // Delete all products in this category
     await Product.deleteMany({ category: name });
-
-    // Delete the category
     await Category.deleteOne({ name });
 
     res.json({ message: "Category and all its products deleted successfully" });
