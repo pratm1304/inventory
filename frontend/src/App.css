@@ -1,45 +1,11 @@
-.page-center {
-  max-width: 1000px;
-  margin: 0 auto;
-  text-align: center; /* headings, buttons, forms center */
-  padding: 30px;
+
+/* Hide number input arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.page-center h2,
-.page-center h3 {
-  text-align: center;
-}
-
-.page-center table {
-  display: table;         /* default, safe for centering */
-  margin: 20px auto;      /* horizontal centering + top-bottom spacing */
-  border-collapse: collapse;
-  width: auto;            /* table content ke hisaab se width */
-  min-width: 700px;       /* optional: minimum width */
-}
-
-.page-center th,
-.page-center td {
-  padding: 10px 15px;
-  text-align: center;
-  vertical-align: middle;
-  white-space: nowrap;   /* content wrap na ho */
-}
-
-
-.page-center th {
-  background-color: #f0f0f0;
-}
-
-.page-center button {
-  margin: 2px;
-  padding: 5px 8px;
-  cursor: pointer;
-}
-
-.page-center form input,
-.page-center form select,
-.page-center form button {
-  padding: 8px 10px;
-  margin: 5px 5px 5px 0;
+input[type="number"] {
+  -moz-appearance: textfield;
 }
