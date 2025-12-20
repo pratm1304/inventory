@@ -32,8 +32,9 @@ function App() {
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
   const [paymentFilter, setPaymentFilter] = useState(null);
+  const [liquidToAdmin, setLiquidToAdmin] = useState('');
   const [showAccounts, setShowAccounts] = useState(false);
-const [denominations, setDenominations] = useState({
+  const [denominations, setDenominations] = useState({
   d500: '',
   d200: '',
   d100: '',
@@ -132,7 +133,15 @@ const calculateCashCounterTotal = () => {
   );
 };
 
+const calculateClosingAmount = () => {
+  return calculateCashCounterTotal() - (parseInt(liquidToAdmin) || 0);
+};
+
 const copyDenominations = () => {
+  const total = calculateCashCounterTotal();
+  const liquid = parseInt(liquidToAdmin) || 0;
+  const closing = total - liquid;
+  
   const text = `500 X ${denominations.d500 || 0}
 200 X ${denominations.d200 || 0}
 100 X ${denominations.d100 || 0}
@@ -140,7 +149,9 @@ const copyDenominations = () => {
 20 X ${denominations.d20 || 0}
 10 X ${denominations.d10 || 0}
 
-Total Cash Counter = ₹${calculateCashCounterTotal()}`;
+Total Counter Cash = ₹${total}
+Liquid to Admin Account = ₹${liquid}
+Closing Amt = ₹${closing}`;
   
   navigator.clipboard.writeText(text);
   showToast("Copied to clipboard!", "success");
@@ -151,6 +162,12 @@ const handleDenominationKeyDown = (e, currentField, nextField) => {
     e.preventDefault();
     if (nextField) {
       document.getElementById(nextField)?.focus();
+    } else if (currentField === 'd10') {
+      // After last denomination, move to liquid input
+      document.getElementById('liquidToAdmin')?.focus();
+    } else if (currentField === 'liquidToAdmin') {
+      // After liquid input, auto copy and show toast
+      copyDenominations();
     }
   }
 };
@@ -1038,7 +1055,7 @@ const handleDenominationKeyDown = (e, currentField, nextField) => {
       💰 Cash Counter
     </h3>
     
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxWidth: "300px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxWidth: "350px" }}>
       {[
         { label: '500', field: 'd500', next: 'd200' },
         { label: '200', field: 'd200', next: 'd100' },
@@ -1075,54 +1092,109 @@ const handleDenominationKeyDown = (e, currentField, nextField) => {
               textAlign: "center"
             }}
           />
-          <span style={{ color: "#6b7280", fontSize: "14px", minWidth: "80px" }}>
+          <span style={{ color: "#6b7280", fontSize: "14px", minWidth: "100px" }}>
             = ₹{(parseInt(denominations[field]) || 0) * parseInt(label)}
           </span>
         </div>
       ))}
     </div>
 
-    {/* Total Box */}
+    {/* Total Counter Cash Box */}
     <div style={{
       marginTop: "24px",
-      padding: "20px",
+      padding: "16px 20px",
       background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%)",
       borderRadius: "12px",
-      border: "1px solid rgba(16, 185, 129, 0.3)",
+      border: "1px solid rgba(16, 185, 129, 0.3)"
+    }}>
+      <div style={{ color: "#6ee7b7", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>
+        TOTAL COUNTER CASH
+      </div>
+      <div style={{ color: "#10b981", fontSize: "28px", fontWeight: "800" }}>
+        ₹{calculateCashCounterTotal()}
+      </div>
+    </div>
+
+    {/* Liquid to Admin Account */}
+    <div style={{
+      marginTop: "16px",
+      padding: "16px 20px",
+      background: "linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%)",
+      borderRadius: "12px",
+      border: "1px solid rgba(245, 158, 11, 0.3)"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ color: "#fcd34d", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>
+            LIQUID TO ADMIN ACCOUNT
+          </div>
+        </div>
+        <input
+          id="liquidToAdmin"
+          type="number"
+          value={liquidToAdmin}
+          onChange={(e) => setLiquidToAdmin(e.target.value)}
+          onKeyDown={(e) => handleDenominationKeyDown(e, 'liquidToAdmin', null)}
+          placeholder="0"
+          style={{
+            padding: "10px 14px",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "8px",
+            fontSize: "18px",
+            width: "120px",
+            background: "rgba(255,255,255,0.05)",
+            color: "#f59e0b",
+            textAlign: "center",
+            fontWeight: "700"
+          }}
+        />
+      </div>
+    </div>
+
+    {/* Closing Amount */}
+    <div style={{
+      marginTop: "16px",
+      padding: "16px 20px",
+      background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%)",
+      borderRadius: "12px",
+      border: "1px solid rgba(59, 130, 246, 0.3)",
       display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
+      alignItems: "center",
+      justifyContent: "space-between"
     }}>
       <div>
-        <div style={{ color: "#6ee7b7", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>
-          TOTAL CASH COUNTER
-        </div>
-        <div style={{ color: "#10b981", fontSize: "32px", fontWeight: "800" }}>
-          ₹{calculateCashCounterTotal()}
+        <div style={{ color: "#93c5fd", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>
+          CLOSING AMOUNT
         </div>
       </div>
-      
-      {/* Copy Button */}
-      <button
-        onClick={copyDenominations}
-        style={{
-          padding: "12px 20px",
-          background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-          color: "white",
-          border: "none",
-          borderRadius: "8px",
-          cursor: "pointer",
-          fontSize: "14px",
-          fontWeight: "600",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          boxShadow: "0 4px 12px rgba(139,92,246,0.3)"
-        }}
-      >
-        📋 Copy
-      </button>
+      <div style={{ color: "#3b82f6", fontSize: "28px", fontWeight: "800" }}>
+        ₹{calculateClosingAmount()}
+      </div>
     </div>
+
+    {/* Copy Button */}
+    <button
+      onClick={copyDenominations}
+      style={{
+        marginTop: "20px",
+        padding: "14px 24px",
+        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "14px",
+        fontWeight: "600",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        boxShadow: "0 4px 12px rgba(139,92,246,0.3)",
+        width: "100%",
+        justifyContent: "center"
+      }}
+    >
+      📋 Copy All Details
+    </button>
   </div>
 )}
             <div style={{ display: "flex", gap: "16px", marginBottom: "30px", alignItems: "flex-start" }}>
