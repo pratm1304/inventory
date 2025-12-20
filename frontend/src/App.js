@@ -626,15 +626,18 @@ Closing Amt = ₹${closing}`;
 
       console.log("✅ Order created:", response.data);
 
-      showToast("DONE", "success");
-      playSuccessSound();
+// ✅ Play sound and show toast immediately
+playSuccessSound();
+showToast("DONE", "success");
 
-      setCart([]);
-      setSelectedOrderType('foushack');
-      setShowPaymentOptions(false);
-      setSelectedPaymentMethod('cash');
-      loadProducts();
-      loadOrders();
+// ✅ Clear state
+setCart([]);
+setSelectedOrderType('foushack');
+setShowPaymentOptions(false);
+setSelectedPaymentMethod('cash');
+
+loadProducts();
+loadOrders();
 
       setTimeout(() => {
         document.getElementById("salesSearchInput")?.focus();
@@ -665,26 +668,55 @@ Closing Amt = ₹${closing}`;
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
     }}>
       {toast.show && (
-        <div style={{
-          position: "fixed",
-          top: "30px",
-          right: "30px",
-          background: toast.type === "error"
-            ? "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"
-            : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+  toast.message === "DONE" ? (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "#10b981",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+        animation: "fadeInOut 3s ease-in-out"
+      }}
+    >
+      <div
+        style={{
           color: "white",
-          padding: "14px 28px",
-          borderRadius: "10px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          zIndex: 1000,
-          animation: "slideIn 0.3s ease-out",
-          fontSize: "14px",
-          fontWeight: "500",
-          letterSpacing: "0.3px"
-        }}>
-          {toast.message}
-        </div>
-      )}
+          fontSize: "120px",
+          fontWeight: "900",
+          letterSpacing: "10px",
+          textTransform: "uppercase"
+        }}
+      >
+        DONE
+      </div>
+    </div>
+  ) : (
+    <div
+      style={{
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        background: toast.type === "success" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+        color: "white",
+        padding: "16px 24px",
+        borderRadius: "12px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        zIndex: 10000,
+        fontSize: "15px",
+        fontWeight: "600",
+        animation: "slideIn 0.3s ease-out"
+      }}
+    >
+      {toast.message}
+    </div>
+  )
+)}
 
       <style>{`
         @keyframes slideIn {
