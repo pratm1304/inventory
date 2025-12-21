@@ -143,3 +143,14 @@ export const deleteAllOrders = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ✅ NEW: Delete all orders WITHOUT reverting product counts
+export const deleteAllOrdersNoRevert = async (req, res) => {
+  try {
+    // Simply delete orders without touching product counts
+    await Order.deleteMany({});
+    res.json({ message: "All orders deleted (no revert)" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

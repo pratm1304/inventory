@@ -388,9 +388,10 @@ Opening Amt = ₹${closing}`;
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
     
-    // Delete all orders
-    await axios.delete(`${process.env.REACT_APP_API_URL}/api/orders/all/delete`);
-    loadOrders();
+    // ✅ CHANGED: Delete orders WITHOUT undoing counts
+    // Use a special endpoint that only deletes without reverting
+    await axios.delete(`${process.env.REACT_APP_API_URL}/api/orders/all/delete-no-revert`);
+    
     showToast("Day finished! File downloaded and records cleared.", "success");
   } catch (err) {
     console.error(err);
@@ -1033,9 +1034,21 @@ loadOrders();
   onClick={async () => {
     if (!window.confirm("⚠️ This will finish the day, download the report, delete all orders, and reset products. Continue?")) return;
     
-    await finishDayAndDownload();
-    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
-    loadProducts();
+    try {
+      // ✅ Step 1: Reset products FIRST (moves remaining to stock)
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
+      
+      // ✅ Step 2: Generate report and delete orders
+      await finishDayAndDownload();
+      
+      // ✅ Step 3: Reload everything
+      await loadProducts();
+      await loadOrders();
+      
+    } catch (error) {
+      console.error("❌ Finish day error:", error);
+      showToast("Failed to finish day", "error");
+    }
   }}
   style={{
     padding: "10px 20px",
@@ -1051,8 +1064,7 @@ loadOrders();
   }}
 >
   Finish Day
-</button>
-                    <button
+</button><button
                       onClick={async () => {
                         if (!window.confirm("Are you sure? This will reset ALL products!")) return;
                         await axios.post(`${process.env.REACT_APP_API_URL}/api/products/reset`);
