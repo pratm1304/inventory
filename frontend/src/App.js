@@ -37,6 +37,7 @@ function App() {
   // ✅ NEW: Performance optimization refs
   const pendingUpdates = useRef({});
   const flushTimeoutRef = useRef(null);
+  const isFlushingRef = useRef(false);
   const lastInteractionTime = useRef(0);
   const INTERACTION_COOLDOWN = 3000; // 3 sec cooldown after clicking
   const [liquidToAdmin, setLiquidToAdmin] = useState('');
@@ -101,13 +102,13 @@ oscillator.stop(audioContext.currentTime + 1.0);
     }
   }, []);
 
-  // ✅ OPTIMIZED: Smart auto-refresh
   useEffect(() => {
-    loadProducts();
-    loadCategories();
-    if (userRole === 'sales' || userRole === 'admin') {
-      loadOrders();
-    }
+  // Initial load
+  loadProducts();
+  loadCategories();
+  if (userRole === 'sales' || userRole === 'admin') {
+    loadOrders();
+  }
 
     const interval = setInterval(() => {
       const timeSinceLastInteraction = Date.now() - lastInteractionTime.current;
@@ -200,49 +201,60 @@ Closing Amt = ₹${closing}`;
 
   // ✅ OPTIMIZED: Debounced update with batching
   const updateValue = useCallback((id, field, change) => {
-    // Immediate UI update (optimistic)
-    setProducts(prev =>
-      prev.map(p =>
-        p._id === id ? { ...p, [field]: Math.max(0, p[field] + change) } : p
-      )
-    );
+  // 1️⃣ Instant optimistic UI update
+  setProducts(prev =>
+    prev.map(p =>
+      p._id === id
+        ? { ...p, [field]: Math.max(0, p[field] + change) }
+        : p
+    )
+  );
 
-    // Track interaction time
-    lastInteractionTime.current = Date.now();
+  // 2️⃣ Mark last interaction
+  lastInteractionTime.current = Date.now();
 
-    // Accumulate changes
-    const key = `${id}:::${field}`;
-    pendingUpdates.current[key] = (pendingUpdates.current[key] || 0) + change;
+  // 3️⃣ Accumulate pending updates (batching)
+  const key = `${id}:::${field}`;
+  pendingUpdates.current[key] =
+    (pendingUpdates.current[key] || 0) + change;
 
-    // Clear existing timeout
-    if (flushTimeoutRef.current) {
-      clearTimeout(flushTimeoutRef.current);
-    }
+  // 4️⃣ Clear previous flush timer
+  if (flushTimeoutRef.current) {
+    clearTimeout(flushTimeoutRef.current);
+  }
 
-    // Flush after 500ms of inactivity
-    flushTimeoutRef.current = setTimeout(async () => {
-      const updates = { ...pendingUpdates.current };
-      pendingUpdates.current = {};
+  // 5️⃣ Schedule backend sync
+  flushTimeoutRef.current = setTimeout(async () => {
+    isFlushingRef.current = true; // 🔒 pause auto-refresh
 
+    const updates = { ...pendingUpdates.current };
+    pendingUpdates.current = {};
+
+    try {
       for (const key of Object.keys(updates)) {
-        const [id, field] = key.split(':::');
+        const [pid, fld] = key.split(":::");
         const totalChange = updates[key];
 
         if (totalChange !== 0) {
-          try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/api/products/update`, {
-              id,
-              field,
+          await axios.post(
+            `${process.env.REACT_APP_API_URL}/api/products/update`,
+            {
+              id: pid,
+              field: fld,
               change: totalChange
-            });
-          } catch (err) {
-            console.error('Update failed:', err);
-            loadProducts(); // Sync on error
-          }
+            }
+          );
         }
       }
-    }, 500);
-  }, [loadProducts]);
+    } catch (err) {
+      console.error("Update failed:", err);
+      loadProducts(); // 🔄 hard sync on failure
+    } finally {
+      isFlushingRef.current = false; // 🔓 resume auto-refresh
+    }
+  }, 500);
+}, [loadProducts]);
+
 
   const updateProductName = async (id, newName) => {
     if (!newName.trim()) return;
