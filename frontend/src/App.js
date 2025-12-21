@@ -7,6 +7,7 @@ function App() {
   const [products, setProducts] = useState([]);
   const [name, setName] = useState("");
   const [stock, setStock] = useState("");
+  const [salesPaymentFilter, setSalesPaymentFilter] = useState(null); // ✅ NEW: For sales view filter
   const [price, setPrice] = useState("");
   const [userRole, setUserRole] = useState(null);
   const [category, setCategory] = useState("");
@@ -94,13 +95,17 @@ oscillator.stop(audioContext.currentTime + 1.0);
   }, []);
 
   const loadOrders = useCallback(async () => {
-    try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/orders`);
-      setOrders(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
+  try {
+    // ✅ Admin mode: load only today's orders
+    const endpoint = userRole === 'admin' 
+      ? `${process.env.REACT_APP_API_URL}/api/orders/today`
+      : `${process.env.REACT_APP_API_URL}/api/orders/today`;
+    const res = await axios.get(endpoint);
+    setOrders(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+}, [userRole]);
 
   useEffect(() => {
   // Initial load
@@ -339,6 +344,68 @@ Opening Amt = ₹${closing}`;
       alert("Failed to delete all orders");
     }
   };
+
+  const finishDayAndDownload = async () => {
+  try {
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    
+    // Calculate totals
+    const cashOrders = orders.filter(o => o.paymentMethod === 'cash');
+    const upiOrders = orders.filter(o => o.paymentMethod === 'upi');
+    const cashTotal = cashOrders.reduce((sum, o) => sum + o.totalPrice, 0);
+    const upiTotal = upiOrders.reduce((sum, o) => sum + o.totalPrice, 0);
+    
+    // Create text content
+    let content = `Order History - ${dateStr}\n`;
+    content += `${'='.repeat(60)}\n\n`;
+    
+    content += `CASH ORDERS (Total: ₹${cashTotal})\n`;
+    content += `${'-'.repeat(60)}\n`;
+    cashOrders.forEach((order, idx) => {
+      content += `${idx + 1}. ${new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} - `;
+      content += `${order.items.map(i => `${i.productName}(${i.qty})`).join(', ')} - ₹${order.totalPrice}\n`;
+    });
+    
+    content += `\n\nUPI ORDERS (Total: ₹${upiTotal})\n`;
+    content += `${'-'.repeat(60)}\n`;
+    upiOrders.forEach((order, idx) => {
+      content += `${idx + 1}. ${new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} - `;
+      content += `${order.items.map(i => `${i.productName}(${i.qty})`).join(', ')} - ₹${order.totalPrice}\n`;
+    });
+    
+    content += `\n${'='.repeat(60)}\n`;
+    content += `TOTAL REVENUE: ₹${cashTotal + upiTotal}\n`;
+    
+    // Download file
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Order-History-${dateStr}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    // Delete all orders
+    await axios.delete(`${process.env.REACT_APP_API_URL}/api/orders/all/delete`);
+    loadOrders();
+    showToast("Day finished! File downloaded and records cleared.", "success");
+  } catch (err) {
+    console.error(err);
+    alert("Failed to finish day");
+  }
+};
+
+  const toggleHighlight = async (orderId) => {
+  try {
+    await axios.patch(`${process.env.REACT_APP_API_URL}/api/orders/${orderId}/highlight`);
+    loadOrders();
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleDragStart = (e, product, category) => {
     setDraggedItem({ product, category });
@@ -662,15 +729,22 @@ loadOrders();
   };
 
   const getTodayOrders = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    return orders.filter(order => {
-      const orderDate = new Date(order.createdAt);
-      orderDate.setHours(0, 0, 0, 0);
-      return orderDate.getTime() === today.getTime();
-    });
-  };
+  let filtered = orders.filter(order => {
+    const orderDate = new Date(order.createdAt);
+    orderDate.setHours(0, 0, 0, 0);
+    return orderDate.getTime() === today.getTime();
+  });
+
+  // ✅ Apply sales payment filter
+  if (salesPaymentFilter) {
+    filtered = filtered.filter(order => order.paymentMethod === salesPaymentFilter);
+  }
+
+  return filtered;
+};
 
   return (
     <div style={{
@@ -956,26 +1030,28 @@ loadOrders();
                 {userRole === 'admin' && (
                   <>
                     <button
-                      onClick={async () => {
-                        await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
-                        loadProducts();
-                        showToast("Day finished successfully!");
-                      }}
-                      style={{
-                        padding: "10px 20px",
-                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        letterSpacing: "0.3px",
-                        boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
-                      }}
-                    >
-                      Finish Day
-                    </button>
+  onClick={async () => {
+    if (!window.confirm("⚠️ This will finish the day, download the report, delete all orders, and reset products. Continue?")) return;
+    
+    await finishDayAndDownload();
+    await axios.post(`${process.env.REACT_APP_API_URL}/api/products/finish`);
+    loadProducts();
+  }}
+  style={{
+    padding: "10px 20px",
+    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "600",
+    letterSpacing: "0.3px",
+    boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
+  }}
+>
+  Finish Day
+</button>
                     <button
                       onClick={async () => {
                         if (!window.confirm("Are you sure? This will reset ALL products!")) return;
@@ -1018,64 +1094,64 @@ loadOrders();
                 {paymentFilter === 'cash' ? 'Cash Orders' : paymentFilter === 'upi' ? 'UPI Orders' : 'All Order History'}
               </h3>
               <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => setPaymentFilter(paymentFilter === 'cash' ? null : 'cash')}
-                  style={{
-                    padding: "8px 16px",
-                    background: paymentFilter === 'cash' ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "rgba(59, 130, 246, 0.2)",
-                    color: paymentFilter === 'cash' ? "white" : "#3b82f6",
-                    border: paymentFilter === 'cash' ? "none" : "1px solid rgba(59, 130, 246, 0.3)",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "600"
-                  }}
-                >
-                  💵 Only Cash
-                </button>
-                {paymentFilter === 'cash' && (
-                  <span style={{ padding: "8px 12px", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
-                    Total: ₹{calculatePaymentTotal('cash')}
-                  </span>
-                )}
-                <button
-                  onClick={() => setPaymentFilter(paymentFilter === 'upi' ? null : 'upi')}
-                  style={{
-                    padding: "8px 16px",
-                    background: paymentFilter === 'upi' ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "rgba(139, 92, 246, 0.2)",
-                    color: paymentFilter === 'upi' ? "white" : "#8b5cf6",
-                    border: paymentFilter === 'upi' ? "none" : "1px solid rgba(139, 92, 246, 0.3)",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "600"
-                  }}
-                >
-                  📱 Only UPI
-                </button>
-                {paymentFilter === 'upi' && (
-                  <span style={{ padding: "8px 12px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
-                    Total: ₹{calculatePaymentTotal('upi')}
-                  </span>
-                )}
-                <button
-                  onClick={deleteAllOrders}
-                  style={{
-                    padding: "8px 16px",
-                    background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    letterSpacing: "0.3px",
-                    boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
-                  }}
-                >
-                  Delete All Records
-                </button>
-              </div>
+  <button
+    onClick={() => setPaymentFilter(paymentFilter === 'cash' ? null : 'cash')}
+    style={{
+      padding: "8px 16px",
+      background: paymentFilter === 'cash' ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "rgba(59, 130, 246, 0.2)",
+      color: paymentFilter === 'cash' ? "white" : "#3b82f6",
+      border: paymentFilter === 'cash' ? "none" : "1px solid rgba(59, 130, 246, 0.3)",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontSize: "12px",
+      fontWeight: "600"
+    }}
+  >
+    💵 Only Cash
+  </button>
+  {paymentFilter === 'cash' && (
+    <span style={{ padding: "8px 12px", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+      Total: ₹{calculatePaymentTotal('cash')}
+    </span>
+  )}
+  <button
+    onClick={() => setPaymentFilter(paymentFilter === 'upi' ? null : 'upi')}
+    style={{
+      padding: "8px 16px",
+      background: paymentFilter === 'upi' ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "rgba(139, 92, 246, 0.2)",
+      color: paymentFilter === 'upi' ? "white" : "#8b5cf6",
+      border: paymentFilter === 'upi' ? "none" : "1px solid rgba(139, 92, 246, 0.3)",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontSize: "12px",
+      fontWeight: "600"
+    }}
+  >
+    📱 Only UPI
+  </button>
+  {paymentFilter === 'upi' && (
+    <span style={{ padding: "8px 12px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+      Total: ₹{calculatePaymentTotal('upi')}
+    </span>
+  )}
+  <button
+    onClick={deleteAllOrders}
+    style={{
+      padding: "8px 16px",
+      background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontSize: "12px",
+      fontWeight: "600",
+      letterSpacing: "0.3px",
+      boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
+    }}
+  >
+    Delete All Records
+  </button>
+</div>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -1093,7 +1169,15 @@ loadOrders();
                 </thead>
                 <tbody>
                   {getFilteredOrders().map((order, index) => (
-                    <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+  <tr 
+    key={order._id} 
+    onDoubleClick={() => toggleHighlight(order._id)} // ✅ NEW
+    style={{ 
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      background: order.isHighlighted ? "#fef3c7" : "transparent", // ✅ NEW
+      cursor: "pointer" // ✅ NEW
+    }}
+  >
                       <td style={{ padding: "12px", color: "#e5e7eb" }}>{getFilteredOrders().length - index}</td>                      <td style={{ padding: "12px", color: "#e5e7eb" }}>
                         {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                       </td>
@@ -1675,9 +1759,53 @@ loadOrders();
               borderRadius: "16px",
               border: "1px solid rgba(255,255,255,0.08)"
             }}>
-              <h3 style={{ margin: "0 0 16px 0", color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
-                Today's Orders
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+  <h3 style={{ margin: 0, color: "#e5e7eb", fontSize: "16px", fontWeight: "600" }}>
+    Today's Orders
+  </h3>
+  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+    <button
+      onClick={() => setSalesPaymentFilter(salesPaymentFilter === 'cash' ? null : 'cash')}
+      style={{
+        padding: "8px 16px",
+        background: salesPaymentFilter === 'cash' ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "rgba(59, 130, 246, 0.2)",
+        color: salesPaymentFilter === 'cash' ? "white" : "#3b82f6",
+        border: salesPaymentFilter === 'cash' ? "none" : "1px solid rgba(59, 130, 246, 0.3)",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "12px",
+        fontWeight: "600"
+      }}
+    >
+      💵 Only Cash
+    </button>
+    {salesPaymentFilter === 'cash' && (
+      <span style={{ padding: "8px 12px", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+        Total: ₹{calculatePaymentTotal('cash')}
+      </span>
+    )}
+    <button
+      onClick={() => setSalesPaymentFilter(salesPaymentFilter === 'upi' ? null : 'upi')}
+      style={{
+        padding: "8px 16px",
+        background: salesPaymentFilter === 'upi' ? "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" : "rgba(139, 92, 246, 0.2)",
+        color: salesPaymentFilter === 'upi' ? "white" : "#8b5cf6",
+        border: salesPaymentFilter === 'upi' ? "none" : "1px solid rgba(139, 92, 246, 0.3)",
+        borderRadius: "8px",
+        cursor: "pointer",
+        fontSize: "12px",
+        fontWeight: "600"
+      }}
+    >
+      📱 Only UPI
+    </button>
+    {salesPaymentFilter === 'upi' && (
+      <span style={{ padding: "8px 12px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>
+        Total: ₹{calculatePaymentTotal('upi')}
+      </span>
+    )}
+  </div>
+</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
@@ -1693,7 +1821,15 @@ loadOrders();
                   </thead>
                   <tbody>
                     {getTodayOrders().map((order, index) => (
-                      <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+  <tr 
+    key={order._id} 
+    onDoubleClick={() => toggleHighlight(order._id)} // ✅ NEW
+    style={{ 
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      background: order.isHighlighted ? "#fef3c7" : "transparent", // ✅ NEW
+      cursor: "pointer" // ✅ NEW
+    }}
+  >
                         <td style={{ padding: "12px", color: "#e5e7eb" }}>{getTodayOrders().length - index}</td>
                         <td style={{ padding: "12px", color: "#e4e6eaff" }}>
                           {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
