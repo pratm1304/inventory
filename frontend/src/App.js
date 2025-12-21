@@ -178,7 +178,7 @@ oscillator.stop(audioContext.currentTime + 1.0);
 
 Total Counter Cash = ₹${total}
 Liquid to Admin Account = ₹${liquid}
-Closing Amt = ₹${closing}`;
+Opening Amt = ₹${closing}`;
 
     navigator.clipboard.writeText(text);
     showToast("Copied to clipboard!", "success");
