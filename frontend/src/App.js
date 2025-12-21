@@ -402,9 +402,11 @@ Opening Amt = ₹${closing}`;
   const toggleHighlight = async (orderId) => {
   try {
     await axios.patch(`${process.env.REACT_APP_API_URL}/api/orders/${orderId}/highlight`);
-    loadOrders();
+    await loadOrders(); // ✅ Reload orders to get updated data
+    showToast("Highlight toggled", "success");
   } catch (err) {
-    console.error(err);
+    console.error("❌ Toggle highlight error:", err);
+    showToast("Failed to toggle highlight", "error");
   }
 };
 

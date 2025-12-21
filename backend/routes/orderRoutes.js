@@ -6,13 +6,28 @@ const router = express.Router();
 router.get("/", getOrders);
 router.get("/today", getTodayOrders); // ✅ NEW ROUTE
 router.post("/create", createOrder);
-router.patch("/:id/highlight", async (req, res) => { // ✅ NEW ROUTE for highlighting
+// ✅ FIXED: Proper highlight toggle route
+router.patch("/:id/highlight", async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Find the order first
     const order = await Order.findById(id);
-    await Order.findByIdAndUpdate(id, { isHighlighted: !order.isHighlighted });
-    res.json({ message: "Highlight toggled" });
+    
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    
+    // Toggle the highlight status
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id, 
+      { isHighlighted: !order.isHighlighted },
+      { new: true } // Return the updated document
+    );
+    
+    res.json(updatedOrder);
   } catch (error) {
+    console.error("❌ Highlight toggle error:", error);
     res.status(500).json({ message: error.message });
   }
 });
