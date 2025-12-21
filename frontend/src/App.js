@@ -1187,8 +1187,8 @@ loadOrders();
     key={order._id} 
     onDoubleClick={() => toggleHighlight(order._id)} // ✅ NEW
     style={{ 
-      borderBottom: "1px solid rgba(255,255,255,0.05)",
-      background: order.isHighlighted ? "#fef3c7" : "transparent", // ✅ NEW
+      // borderBottom: "1px solid yellow",
+      background: order.isHighlighted ? "#382e0eff" : "transparent", // ✅ NEW
       cursor: "pointer" // ✅ NEW
     }}
   >
@@ -1839,8 +1839,8 @@ loadOrders();
     key={order._id} 
     onDoubleClick={() => toggleHighlight(order._id)} // ✅ NEW
     style={{ 
-      borderBottom: "1px solid rgba(255,255,255,0.05)",
-      background: order.isHighlighted ? "#fef3c7" : "transparent", // ✅ NEW
+      // borderBottom: "1px solid rgba(85, 79, 17, 0.49)",
+      background: order.isHighlighted ? "#382e0eff" : "transparent", // ✅ NEW
       cursor: "pointer" // ✅ NEW
     }}
   >
@@ -2397,7 +2397,7 @@ loadOrders();
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Admin</th>
-                      <th style={{
+                      {userRole !== 'admin' && <th style={{
                         padding: "14px",
                         textAlign: "center",
                         fontWeight: "600",
@@ -2407,7 +2407,7 @@ loadOrders();
                         fontSize: "12px",
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
-                      }}>Chef</th>
+                      }}>Chef</th>}
                       {userRole === 'chef' && <th style={{
                         padding: "14px",
                         textAlign: "center",
@@ -2419,7 +2419,7 @@ loadOrders();
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Task</th>}
-                      {userRole !== 'chef' && <th style={{
+                      {userRole !== 'chef' && userRole !== 'admin' && <th style={{
                         padding: "14px",
                         textAlign: "center",
                         fontWeight: "600",
@@ -2430,7 +2430,7 @@ loadOrders();
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Sales</th>}
-                      {userRole !== 'chef' && <th style={{
+                      {userRole !== 'chef' && userRole !== 'admin' && <th style={{
                         padding: "14px",
                         textAlign: "center",
                         fontWeight: "600",
@@ -2441,7 +2441,7 @@ loadOrders();
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Zomato</th>}
-                      {userRole !== 'chef' && <th style={{
+                      {userRole !== 'chef' && userRole !== 'admin' && <th style={{
                         padding: "14px",
                         textAlign: "center",
                         fontWeight: "600",
@@ -2452,7 +2452,7 @@ loadOrders();
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
                       }}>Remaining</th>}
-                      {userRole === 'admin' && <th style={{
+                      {/* {userRole === 'admin' && <th style={{
                         padding: "14px",
                         textAlign: "center",
                         fontWeight: "600",
@@ -2462,7 +2462,7 @@ loadOrders();
                         fontSize: "12px",
                         letterSpacing: "0.5px",
                         textTransform: "uppercase"
-                      }}>Delete</th>}
+                      }}>Delete</th>} */}
                     </tr>
                   </thead>
                   <tbody>
@@ -2752,45 +2752,54 @@ loadOrders();
                                 ? "2px solid rgba(16, 185, 129, 0.3)"
                                 : "none"
                           }}>
-                            {userRole === 'admin' || userRole === 'chef' ? (
-                              <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
-                                <button
-                                  onClick={() => updateValue(p._id, "chef", -1)}
-                                  style={{
-                                    width: "32px",
-                                    height: "32px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    background: "rgba(255,255,255,0.05)",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "16px",
-                                    color: "#9ca3af",
-                                    fontWeight: "600"
-                                  }}
-                                >
-                                  −
-                                </button>
-                                <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>{p.chef}</span>
-                                <button
-                                  onClick={() => updateValue(p._id, "chef", 1)}
-                                  style={{
-                                    width: "32px",
-                                    height: "32px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    background: "rgba(255,255,255,0.05)",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "16px",
-                                    color: "#9ca3af",
-                                    fontWeight: "600"
-                                  }}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            ) : (
-                              <span style={{ fontWeight: "600", color: "#e5e7eb" }}>{p.chef}</span>
-                            )}
+                            {userRole !== "admin" && (
+  userRole === "chef" ? (
+    <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
+      <button
+        onClick={() => updateValue(p._id, "chef", -1)}
+        style={{
+          width: "32px",
+          height: "32px",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.05)",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontSize: "16px",
+          color: "#9ca3af",
+          fontWeight: "600"
+        }}
+      >
+        −
+      </button>
+
+      <span style={{ fontWeight: "600", minWidth: "30px", textAlign: "center", color: "#e5e7eb" }}>
+        {p.chef}
+      </span>
+
+      <button
+        onClick={() => updateValue(p._id, "chef", 1)}
+        style={{
+          width: "32px",
+          height: "32px",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.05)",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontSize: "16px",
+          color: "#9ca3af",
+          fontWeight: "600"
+        }}
+      >
+        +
+      </button>
+    </div>
+  ) : (
+    <span style={{ fontWeight: "600", color: "#e5e7eb" }}>
+      {p.chef}
+    </span>
+  )
+)}
+
                           </td>
                           {userRole === 'chef' && (
                             <td style={{
@@ -2804,7 +2813,7 @@ loadOrders();
                               {task}
                             </td>
                           )}
-                          {userRole !== 'chef' && (
+                          {userRole !== 'chef' && userRole !== 'admin' &&  (
                             <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' ? (
                                 <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
@@ -2847,7 +2856,7 @@ loadOrders();
                               )}
                             </td>
                           )}
-                          {userRole !== 'chef' && (
+                          {userRole !== 'chef' && userRole !== 'admin' && (
                             <td style={{ padding: "14px", textAlign: "center" }}>
                               {userRole === 'admin' ? (
                                 <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
@@ -2890,7 +2899,7 @@ loadOrders();
                               )}
                             </td>
                           )}
-                          {userRole !== 'chef' && (
+                          {userRole !== 'chef' && userRole !== 'admin' && (
                             <td style={{
                               padding: "14px",
                               textAlign: "center",
@@ -2942,6 +2951,7 @@ loadOrders();
                       <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
                         {totals.admin}
                       </td>
+                     { userRole !== 'admin' && (
                       <td style={{
                         padding: "14px",
                         textAlign: "center",
@@ -2954,7 +2964,7 @@ loadOrders();
                             : "rgba(16, 185, 129, 0.3)"
                       }}>
                         {totals.chef}
-                      </td>
+                      </td>)}
                       {userRole === 'chef' && (
                         <td style={{
                           padding: "14px",
@@ -2967,17 +2977,17 @@ loadOrders();
                           {totalTask}
                         </td>
                       )}
-                      {userRole !== 'chef' && (
+                      {userRole !== 'chef' && userRole !== 'admin' &&  (
                         <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
                           {totals.sales}
                         </td>
                       )}
-                      {userRole !== 'chef' && (
+                      {userRole !== 'chef' && userRole !== 'admin' &&  (
                         <td style={{ padding: "14px", textAlign: "center", fontWeight: "700", color: "#e5e7eb" }}>
                           {totals.zomato}
                         </td>
                       )}
-                      {userRole !== 'chef' && (
+                      {userRole !== 'chef' && userRole !== 'admin' &&  (
                         <td style={{
                           padding: "14px",
                           textAlign: "center",
