@@ -1683,7 +1683,7 @@ loadOrders();
                     {getTodayOrders().map((order, index) => (
                       <tr key={order._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                         <td style={{ padding: "12px", color: "#e5e7eb" }}>{getTodayOrders().length - index}</td>
-                        <td style={{ padding: "12px", color: "#e5e7eb" }}>
+                        <td style={{ padding: "12px", color: "#e4e6eaff" }}>
                           {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td style={{ padding: "12px", color: "#e5e7eb" }}>
@@ -1712,7 +1712,7 @@ loadOrders();
                         </td>
                       </tr>
                     ))}
-                  </tbody>
+                  </tbody> 
                 </table>
               </div>
             </div>
