@@ -16,7 +16,9 @@ export const updateField = async (req, res) => {
       { new: true }
     );
 
-    res.json(updatedProduct);
+    req.app.get("io").emit("productUpdated", updatedProduct);
+res.json(updatedProduct);
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -57,7 +59,9 @@ export const addProduct = async (req, res) => {
       order: newOrder
     });
 
-    res.json(newProduct);
+    req.app.get("io").emit("productAdded", newProduct);
+res.json(newProduct);
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -79,7 +83,9 @@ export const finishDay = async (req, res) => {
       await p.save();
     }
 
-    res.json({ message: "Day Finished & Stock Updated!" });
+    req.app.get("io").emit("dayFinished");
+res.json({ message: "Day Finished & Stock Updated!" });
+
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -101,7 +107,9 @@ export const resetData = async (req, res) => {
       }
     );
 
-    res.json({ message: "All products reset successfully!" });
+    req.app.get("io").emit("dataReset");
+res.json({ message: "All products reset successfully!" });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -174,10 +182,16 @@ export const deleteProduct = async (req, res) => {
       await Category.deleteOne({ name: category });
     }
 
-    res.json({
-      message: "Product deleted",
-      deleteCategory: count === 0 ? category : null,
-    });
+    req.app.get("io").emit("productDeleted", {
+  productId: id,
+  categoryDeleted: count === 0 ? category : null
+});
+
+res.json({
+  message: "Product deleted",
+  deleteCategory: count === 0 ? category : null,
+});
+
 
   } catch (error) {
     res.status(500).json({ message: error.message });

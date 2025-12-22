@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 import productRoutes from "./routes/productRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import { initSocket } from "./socket.js"; // 👈 NEW
 
 dotenv.config();
 const app = express();
@@ -35,6 +38,21 @@ mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
 
-app.listen(process.env.PORT || 10000, () =>
-  console.log(`Server running on ${process.env.PORT}`)
+const httpServer = createServer(app);
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// initialize socket listeners
+initSocket(io);
+
+// make io accessible in controllers
+app.set("io", io);
+
+httpServer.listen(process.env.PORT || 10000, () =>
+  console.log(`Server running on ${process.env.PORT || 10000}`)
 );

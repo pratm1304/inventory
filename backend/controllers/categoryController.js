@@ -30,7 +30,9 @@ export const reorderCategories = async (req, res) => {
       await Category.findByIdAndUpdate(allCategories[i]._id, { order: i });
     }
 
-    res.json({ message: "Categories reordered successfully" });
+    req.app.get("io").emit("categoriesReordered");
+res.json({ message: "Categories reordered successfully" });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -50,7 +52,9 @@ export const updateCategoryName = async (req, res) => {
     // Update all products in this category
     await Product.updateMany({ category: oldName }, { category: newName.trim() });
 
-    res.json({ message: "Category name updated successfully" });
+    req.app.get("io").emit("categoryUpdated", { oldName, newName });
+res.json({ message: "Category name updated successfully" });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -63,7 +67,8 @@ export const deleteCategory = async (req, res) => {
     await Product.deleteMany({ category: name });
     await Category.deleteOne({ name });
 
-    res.json({ message: "Category and all its products deleted successfully" });
+req.app.get("io").emit("categoryDeleted", name);
+res.json({ message: "Category and all its products deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

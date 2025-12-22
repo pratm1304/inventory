@@ -76,7 +76,9 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    return res.json(newOrder);
+    req.app.get("io").emit("orderCreated", newOrder);
+return res.json(newOrder);
+
   } catch (error) {
     console.error("❌ Order creation error:", error);
     
@@ -111,7 +113,9 @@ export const deleteOrder = async (req, res) => {
     }
 
     await Order.findByIdAndDelete(id);
-    res.json({ message: "Order deleted and counts restored" });
+    req.app.get("io").emit("orderDeleted", id);
+res.json({ message: "Order deleted and counts restored" });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -138,7 +142,8 @@ export const deleteAllOrders = async (req, res) => {
     }
 
     await Order.deleteMany({});
-    res.json({ message: "All orders deleted and counts restored" });
+req.app.get("io").emit("ordersCleared");
+res.json({ message: "All orders deleted..." });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -149,7 +154,9 @@ export const deleteAllOrdersNoRevert = async (req, res) => {
   try {
     // Simply delete orders without touching product counts
     await Order.deleteMany({});
-    res.json({ message: "All orders deleted (no revert)" });
+    req.app.get("io").emit("ordersCleared");
+res.json({ message: "All orders deleted..." });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

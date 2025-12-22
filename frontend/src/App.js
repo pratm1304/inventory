@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
+import { io } from "socket.io-client";
 import "./App.css";
 
+const socket = io("https://inventory-jvbj.onrender.com"); 
+// ⚠️ use your backend port
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -136,6 +139,74 @@ oscillator.stop(audioContext.currentTime + 1.0);
     };
   }, [userRole, loadProducts, loadCategories, loadOrders]);
 
+  useEffect(() => {
+  // PRODUCTS
+  socket.on("productUpdated", () => {
+    loadProducts();
+  });
+
+  socket.on("productAdded", () => {
+    loadProducts();
+    loadCategories();
+  });
+
+  socket.on("productDeleted", () => {
+    loadProducts();
+    loadCategories();
+  });
+
+  // CATEGORIES
+  socket.on("categoryUpdated", () => {
+    loadProducts();
+    loadCategories();
+  });
+
+  socket.on("categoryDeleted", () => {
+    loadProducts();
+    loadCategories();
+  });
+
+  socket.on("categoriesReordered", () => {
+    loadCategories();
+  });
+
+  // ORDERS
+  socket.on("orderCreated", () => {
+    if (userRole === "sales" || userRole === "admin") {
+      loadOrders();
+    }
+    loadProducts(); // counts change
+  });
+
+  socket.on("orderDeleted", () => {
+    if (userRole === "sales" || userRole === "admin") {
+      loadOrders();
+    }
+    loadProducts();
+  });
+
+  socket.on("ordersCleared", () => {
+    if (userRole === "sales" || userRole === "admin") {
+      loadOrders();
+    }
+    loadProducts();
+  });
+
+  // DAY / RESET
+  socket.on("dayFinished", () => {
+    loadProducts();
+  });
+
+  socket.on("dataReset", () => {
+    loadProducts();
+  });
+
+  return () => {
+    socket.removeAllListeners();
+  };
+}, [userRole, loadProducts, loadCategories, loadOrders]);
+
+
 
   const calculateTotalRevenue = () => {
     return products.reduce((total, p) => {
@@ -175,11 +246,11 @@ oscillator.stop(audioContext.currentTime + 1.0);
     const closing = total - liquid;
 
     const text = `500 X ${denominations.d500 || 0}
-200 X ${denominations.d200 || 0}
-100 X ${denominations.d100 || 0}
-50 X ${denominations.d50 || 0}
-20 X ${denominations.d20 || 0}
-10 X ${denominations.d10 || 0}
+  200 X ${denominations.d200 || 0}
+  100 X ${denominations.d100 || 0}
+  50 X ${denominations.d50 || 0}
+  20 X ${denominations.d20 || 0}
+  10 X ${denominations.d10 || 0}
 
 Total Counter Cash = ₹${total}
 Liquid to Admin Account = ₹${liquid}
