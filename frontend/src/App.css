@@ -9,3 +9,54 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+.dial-btn {
+  background: #1f2937;
+  color: #fff;
+  border: 1px solid #374151;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dial-btn:hover {
+  background: #111827;
+}
+
+.dials-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 16px;
+  max-width: 320px;
+}
+
+.dials-label {
+  font-size: 13px;
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.dials-input {
+  width: 100%;
+  background: #020617;
+  border: 1px solid #334155;
+  color: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  outline: none;
+  margin-bottom: 14px;
+}
+
+.dials-result {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #e5e7eb;
+}
+
+.dials-result strong {
+  color: #22c55e;
+}

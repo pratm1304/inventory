@@ -110,102 +110,51 @@ oscillator.stop(audioContext.currentTime + 1.0);
   }
 }, [userRole]);
 
-  useEffect(() => {
-  // Initial load
+ useEffect(() => {
   loadProducts();
   loadCategories();
   if (userRole === 'sales' || userRole === 'admin') {
     loadOrders();
   }
+}, [userRole]);
 
-    const interval = setInterval(() => {
-      const timeSinceLastInteraction = Date.now() - lastInteractionTime.current;
-      
-      // Only refresh if user hasn't clicked in last 3 seconds
-      if (timeSinceLastInteraction > INTERACTION_COOLDOWN) {
-        loadProducts();
-        loadCategories();
-        if (userRole === 'sales' || userRole === 'admin') {
-          loadOrders();
-        }
-      }
-    }, 5000);
-
-    return () => {
-      clearInterval(interval);
-      if (flushTimeoutRef.current) {
-        clearTimeout(flushTimeoutRef.current);
-      }
-    };
-  }, [userRole, loadProducts, loadCategories, loadOrders]);
 
   useEffect(() => {
-  // PRODUCTS
-  socket.on("productUpdated", () => {
-    loadProducts();
-  });
 
-  socket.on("productAdded", () => {
-    loadProducts();
-    loadCategories();
-  });
-
-  socket.on("productDeleted", () => {
-    loadProducts();
-    loadCategories();
-  });
-
-  // CATEGORIES
-  socket.on("categoryUpdated", () => {
-    loadProducts();
-    loadCategories();
-  });
-
-  socket.on("categoryDeleted", () => {
-    loadProducts();
-    loadCategories();
-  });
-
-  socket.on("categoriesReordered", () => {
-    loadCategories();
-  });
-
-  // ORDERS
   socket.on("orderCreated", () => {
     if (userRole === "sales" || userRole === "admin") {
       loadOrders();
     }
-    loadProducts(); // counts change
+    // ❌ loadProducts() REMOVED
   });
 
   socket.on("orderDeleted", () => {
     if (userRole === "sales" || userRole === "admin") {
       loadOrders();
     }
-    loadProducts();
+    // ❌ loadProducts() REMOVED
   });
 
   socket.on("ordersCleared", () => {
     if (userRole === "sales" || userRole === "admin") {
       loadOrders();
     }
-    loadProducts();
-  });
-
-  // DAY / RESET
-  socket.on("dayFinished", () => {
-    loadProducts();
-  });
-
-  socket.on("dataReset", () => {
-    loadProducts();
+    // ❌ loadProducts() REMOVED
   });
 
   return () => {
     socket.removeAllListeners();
   };
-}, [userRole, loadProducts, loadCategories, loadOrders]);
+}, [userRole, loadOrders]);
 
+
+socket.on("productUpdated", (updatedProduct) => {
+  setProducts(prev =>
+    prev.map(p =>
+      p._id === updatedProduct._id ? updatedProduct : p
+    )
+  );
+});
 
 
   const calculateTotalRevenue = () => {
@@ -276,8 +225,8 @@ Opening Amt = ₹${closing}`;
   };
 
   // ✅ OPTIMIZED: Debounced update with batching
-  const updateValue = useCallback((id, field, change) => {
-  // 1️⃣ Instant optimistic UI update
+const updateValue = async (id, field, change) => {
+  // 1️⃣ Optimistic UI
   setProducts(prev =>
     prev.map(p =>
       p._id === id
@@ -286,50 +235,18 @@ Opening Amt = ₹${closing}`;
     )
   );
 
-  // 2️⃣ Mark last interaction
-  lastInteractionTime.current = Date.now();
-
-  // 3️⃣ Accumulate pending updates (batching)
-  const key = `${id}:::${field}`;
-  pendingUpdates.current[key] =
-    (pendingUpdates.current[key] || 0) + change;
-
-  // 4️⃣ Clear previous flush timer
-  if (flushTimeoutRef.current) {
-    clearTimeout(flushTimeoutRef.current);
+  // 2️⃣ Backend atomic update
+  try {
+    await axios.post(
+      `${process.env.REACT_APP_API_URL}/api/products/update`,
+      { id, field, change }
+    );
+  } catch (err) {
+    console.error(err);
+    loadProducts(); // only on error
   }
+};
 
-  // 5️⃣ Schedule backend sync
-  flushTimeoutRef.current = setTimeout(async () => {
-    isFlushingRef.current = true; // 🔒 pause auto-refresh
-
-    const updates = { ...pendingUpdates.current };
-    pendingUpdates.current = {};
-
-    try {
-      for (const key of Object.keys(updates)) {
-        const [pid, fld] = key.split(":::");
-        const totalChange = updates[key];
-
-        if (totalChange !== 0) {
-          await axios.post(
-            `${process.env.REACT_APP_API_URL}/api/products/update`,
-            {
-              id: pid,
-              field: fld,
-              change: totalChange
-            }
-          );
-        }
-      }
-    } catch (err) {
-      console.error("Update failed:", err);
-      loadProducts(); // 🔄 hard sync on failure
-    } finally {
-      isFlushingRef.current = false; // 🔓 resume auto-refresh
-    }
-  }, 500);
-}, [loadProducts]);
 
 
   const updateProductName = async (id, newName) => {
